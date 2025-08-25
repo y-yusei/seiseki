@@ -199,6 +199,41 @@
                         </div>
                     </div>
 
+                    <!-- 進捗表示 -->
+                    <div class="card mb-4" id="progressCard">
+                        <div class="card-header">
+                            <h6><i class="fas fa-tasks me-2"></i>入力進捗</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 col-6 mb-2">
+                                    <div class="form-check" id="progressGroup">
+                                        <input class="form-check-input" type="checkbox" disabled>
+                                        <label class="form-check-label">グループ選択</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6 mb-2">
+                                    <div class="form-check" id="progressMembers">
+                                        <input class="form-check-input" type="checkbox" disabled>
+                                        <label class="form-check-label">メンバー評価</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6 mb-2">
+                                    <div class="form-check" id="progressFirst">
+                                        <input class="form-check-input" type="checkbox" disabled>
+                                        <label class="form-check-label">1位選択</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6 mb-2">
+                                    <div class="form-check" id="progressSecond">
+                                        <input class="form-check-input" type="checkbox" disabled>
+                                        <label class="form-check-label">2位選択</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 提出ボタン -->
                     <div class="text-center mb-4">
                         <button type="submit" class="btn btn-primary btn-lg" id="submitButton" disabled>
@@ -206,41 +241,6 @@
                         </button>
                     </div>
                 </form>
-
-                <!-- 進捗表示 -->
-                <div class="card mt-4" id="progressCard">
-                    <div class="card-header">
-                        <h6><i class="fas fa-tasks me-2"></i>入力進捗</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3 col-6 mb-2">
-                                <div class="form-check" id="progressGroup">
-                                    <input class="form-check-input" type="checkbox" disabled>
-                                    <label class="form-check-label">グループ選択</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6 mb-2">
-                                <div class="form-check" id="progressMembers">
-                                    <input class="form-check-input" type="checkbox" disabled>
-                                    <label class="form-check-label">メンバー評価</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6 mb-2">
-                                <div class="form-check" id="progressFirst">
-                                    <input class="form-check-input" type="checkbox" disabled>
-                                    <label class="form-check-label">1位選択</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6 mb-2">
-                                <div class="form-check" id="progressSecond">
-                                    <input class="form-check-input" type="checkbox" disabled>
-                                    <label class="form-check-label">2位選択</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 
                 {% endif %}
                 {% endif %}

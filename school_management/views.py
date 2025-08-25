@@ -1193,7 +1193,7 @@ def close_peer_evaluation(request, session_id):
         from django.contrib import messages
         messages.success(request, 'ピア評価を締め切りました。')
     
-    return redirect('school_management:lesson_session_detail', session_id=session_id)
+    return redirect('school_management:improved_peer_evaluation_create', session_id=session_id)
 
 
 def reopen_peer_evaluation(request, session_id):
@@ -1211,7 +1211,7 @@ def reopen_peer_evaluation(request, session_id):
         from django.contrib import messages
         messages.success(request, 'ピア評価を再開しました。')
     
-    return redirect('school_management:lesson_session_detail', session_id=session_id)
+    return redirect('school_management:improved_peer_evaluation_create', session_id=session_id)
 
 
 def peer_evaluation_results(request, session_id):

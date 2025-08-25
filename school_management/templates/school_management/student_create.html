@@ -160,7 +160,7 @@ S2025003,田中次郎,タナカジロウ,tanaka@example.com" required></textarea
     </div>
     
     <div class="col-md-6">
-        <div class="card">
+        <div class="card mt-3">
             <div class="card-header">
                 <h6><i class="fas fa-users me-2"></i>一括登録について</h6>
             </div>
@@ -178,5 +178,27 @@ S2025003,田中次郎,タナカジロウ,tanaka@example.com" required></textarea
         </div>
     </div>
 </div>
+
+<script>
+function insertTemplate() {
+    const textarea = document.getElementById('student_data');
+    const template = `2024001,山田太郎,yamada@example.com,ヤマダタロウ
+2024002,佐藤花子,sato@example.com,サトウハナコ
+2024003,田中次郎,tanaka@example.com,タナカジロウ
+2024004,鈴木一郎,suzuki@example.com,スズキイチロウ
+2024005,高橋美香,takahashi@example.com,タカハシミカ`;
+    
+    textarea.value = template;
+    textarea.focus();
+}
+
+// 貼り付け時の自動フォーマット
+document.getElementById('student_data').addEventListener('paste', function(e) {
+    setTimeout(() => {
+        // タブをカンマに変換
+        this.value = this.value.replace(/\t/g, ',');
+    }, 100);
+});
+</script>
 
 {% endblock %}
