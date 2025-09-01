@@ -1,0 +1,75 @@
+{% extends 'school_management/base.html' %}
+
+{% block title %}QRコードスキャン{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-camera me-2"></i>QRコードスキャン
+                    </h2>
+                </div>
+                <div class="card-body text-center">
+                    {% if qr_code %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle fa-2x mb-3"></i>
+                            <h4>スキャン成功！</h4>
+                            <p class="mb-2">{{ qr_code.student.full_name }}さんのQRコードをスキャンしました。</p>
+                            <p class="mb-0"><strong>{{ qr_code.student.full_name }}さんのポイントが1点増加しました！</strong></p>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">スキャン情報</h5>
+                                        <p class="mb-1"><strong>QRコード所有者:</strong> {{ qr_code.student.full_name }}</p>
+                                        <p class="mb-1"><strong>学籍番号:</strong> {{ qr_code.student.student_number }}</p>
+                                        <p class="mb-1"><strong>付与ポイント:</strong> 1点</p>
+                                        <p class="mb-0"><strong>スキャン日時:</strong> {{ scan_time }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">あなたの情報</h5>
+                                        <p class="mb-1"><strong>名前:</strong> {{ request.user.full_name }}</p>
+                                        <p class="mb-1"><strong>学籍番号:</strong> {{ request.user.student_number }}</p>
+                                        <p class="mb-1"><strong>現在のポイント:</strong> {{ request.user.points }}点</p>
+                                        <p class="mb-0"><strong>スキャンした回数:</strong> {{ user_scan_count }}回</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <a href="{% url 'school_management:student_dashboard' %}" class="btn btn-primary me-2">
+                                <i class="fas fa-home me-1"></i>ダッシュボードに戻る
+                            </a>
+                            <a href="{% url 'school_management:student_qr_code' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-qrcode me-1"></i>マイQRコード
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                            <h4>スキャンエラー</h4>
+                            <p class="mb-0">{{ error_message }}</p>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <a href="{% url 'school_management:student_dashboard' %}" class="btn btn-primary">
+                                <i class="fas fa-home me-1"></i>ダッシュボードに戻る
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

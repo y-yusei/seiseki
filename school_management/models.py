@@ -361,3 +361,41 @@ class Attendance(models.Model):
     
     def __str__(self):
         return f"{self.lesson_session} - {self.student.full_name}: {self.get_status_display()}"
+
+
+class StudentQRCode(models.Model):
+    """学生QRコード"""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, verbose_name='学生', related_name='qr_codes')
+    qr_code_id = models.UUIDField(default=uuid.uuid4, unique=True, verbose_name='QRコードID')
+    is_active = models.BooleanField(default=True, verbose_name='有効')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name='最終使用日時')
+    
+    class Meta:
+        verbose_name = '学生QRコード'
+        verbose_name_plural = '学生QRコード'
+    
+    def __str__(self):
+        return f"{self.student.full_name}のQRコード"
+    
+    @property
+    def qr_code_url(self):
+        """QRコードのURLを生成"""
+        from django.urls import reverse
+        return reverse('qr_code_scan', kwargs={'qr_code_id': self.qr_code_id})
+
+
+class QRCodeScan(models.Model):
+    """QRコードスキャン履歴"""
+    qr_code = models.ForeignKey(StudentQRCode, on_delete=models.CASCADE, verbose_name='QRコード', related_name='scans')
+    scanned_by = models.ForeignKey(Student, on_delete=models.CASCADE, verbose_name='スキャン者', related_name='qr_scans')
+    points_awarded = models.IntegerField(default=1, verbose_name='付与ポイント')
+    scanned_at = models.DateTimeField(auto_now_add=True, verbose_name='スキャン日時')
+    
+    class Meta:
+        verbose_name = 'QRコードスキャン'
+        verbose_name_plural = 'QRコードスキャン'
+        unique_together = ['qr_code', 'scanned_by']  # 同じQRコードを同じ人が複数回スキャンできないようにする
+    
+    def __str__(self):
+        return f"{self.qr_code.student.full_name}のQRコードを{self.scanned_by.full_name}がスキャン"

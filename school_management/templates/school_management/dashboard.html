@@ -85,7 +85,12 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <button class="btn btn-warning w-100 h-100 d-flex align-items-center justify-content-center" onclick="alert('統計レポート機能は準備中です。管理画面から個別のクラスや学生の情報を確認できます。')">
+                        <a href="{% url 'school_management:qr_code_list' %}" class="btn btn-warning w-100 h-100 d-flex align-items-center justify-content-center">
+                            <i class="fas fa-qrcode me-2"></i>QRコード管理
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-secondary w-100 h-100 d-flex align-items-center justify-content-center" onclick="alert('統計レポート機能は準備中です。管理画面から個別のクラスや学生の情報を確認できます。')">
                             <i class="fas fa-chart-bar me-2"></i>統計レポート
                         </button>
                     </div>
