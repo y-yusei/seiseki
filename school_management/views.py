@@ -5,11 +5,12 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware.csrf import get_token
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Max
+from django.db import models
 # import qrcode  # 一時的にコメントアウト
 # import io
 # import base64
-from .models import ClassRoom, Student, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser
+from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser
 
 def login_view(request):
     """ログイン画面"""
@@ -699,6 +700,8 @@ def quiz_grading_view(request, quiz_id):
         
         if action == 'save_scores':
             # 採点結果保存
+            teacher = request.user  # 現在のユーザーを採点者として使用
+            
             for student in students:
                 score_value = request.POST.get(f'score_{student.student_number}')
                 if score_value and score_value.strip():
@@ -711,7 +714,8 @@ def quiz_grading_view(request, quiz_id):
                             QuizScore.objects.create(
                                 quiz=quiz,
                                 student=student,
-                                score=score
+                                score=score,
+                                graded_by=teacher
                             )
                     except ValueError:
                         pass  # 無効な値は無視
@@ -753,6 +757,107 @@ def quiz_results_view(request, quiz_id):
         'stats': stats,
     }
     return render(request, 'school_management/quiz_results.html', context)
+
+
+@login_required
+def question_create_view(request, quiz_id):
+    """小テスト問題作成"""
+    from .models import Question, QuestionChoice
+    
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    # 小テストの所属する授業回の教員かどうか確認
+    if not quiz.lesson_session.classroom.teachers.filter(id=request.user.id).exists():
+        return redirect('school_management:dashboard')
+    
+    if request.method == 'POST':
+        question_text = request.POST.get('question_text')
+        question_type = request.POST.get('question_type')
+        points = int(request.POST.get('points', 1))
+        
+        # 問題の順番を決定
+        last_order = Question.objects.filter(quiz=quiz).aggregate(
+            max_order=Max('order')
+        )['max_order'] or 0
+        
+        question = Question.objects.create(
+            quiz=quiz,
+            question_text=question_text,
+            question_type=question_type,
+            points=points,
+            order=last_order + 1
+        )
+        
+        # 選択問題または正誤問題の場合、選択肢を作成
+        if question_type in ['multiple_choice', 'true_false']:
+            if question_type == 'true_false':
+                # 正誤問題の場合、True/Falseの選択肢を自動作成
+                QuestionChoice.objects.create(
+                    question=question,
+                    choice_text='正しい',
+                    is_correct=request.POST.get('correct_answer') == 'true',
+                    order=1
+                )
+                QuestionChoice.objects.create(
+                    question=question,
+                    choice_text='間違い',
+                    is_correct=request.POST.get('correct_answer') == 'false',
+                    order=2
+                )
+            else:
+                # 選択問題の場合、入力された選択肢を作成
+                choice_texts = request.POST.getlist('choice_text')
+                correct_choice_index = int(request.POST.get('correct_choice', 0))
+                
+                for i, choice_text in enumerate(choice_texts):
+                    if choice_text.strip():  # 空でない選択肢のみ作成
+                        QuestionChoice.objects.create(
+                            question=question,
+                            choice_text=choice_text.strip(),
+                            is_correct=(i == correct_choice_index),
+                            order=i + 1
+                        )
+        
+        # 記述問題の場合、正解を保存
+        elif question_type == 'short_answer':
+            question.correct_answer = request.POST.get('correct_answer', '')
+            question.save()
+        
+        messages.success(request, f'問題「{question_text[:30]}...」を作成しました。')
+        return redirect('school_management:question_manage', quiz_id=quiz.id)
+    
+    # 既存の問題一覧を取得
+    questions = Question.objects.filter(quiz=quiz).prefetch_related('choices')
+    
+    context = {
+        'quiz': quiz,
+        'questions': questions,
+    }
+    return render(request, 'school_management/question_create.html', context)
+
+
+@login_required
+def question_manage_view(request, quiz_id):
+    """小テスト問題管理"""
+    from .models import Question
+    
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    # 小テストの所属する授業回の教員かどうか確認
+    if not quiz.lesson_session.classroom.teachers.filter(id=request.user.id).exists():
+        return redirect('school_management:dashboard')
+    
+    questions = Question.objects.filter(quiz=quiz).prefetch_related('choices')
+    
+    # 合計配点を計算
+    total_points = sum(question.points for question in questions)
+    
+    context = {
+        'quiz': quiz,
+        'questions': questions,
+        'total_points': total_points,
+    }
+    return render(request, 'school_management/question_manage.html', context)
 
 
 # 授業セッション管理

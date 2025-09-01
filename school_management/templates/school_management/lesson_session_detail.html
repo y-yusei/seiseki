@@ -83,7 +83,7 @@
                         <i class="fas fa-users me-1"></i>グループ編成
                     </a>
                     {% if lesson_session.has_quiz %}
-                        <a href="#" class="btn btn-success btn-sm" onclick="alert('小テスト管理機能は実装中です')">
+                        <a href="{% url 'school_management:quiz_list' lesson_session.id %}" class="btn btn-success btn-sm">
                             <i class="fas fa-clipboard-question me-1"></i>小テスト管理
                         </a>
                     {% endif %}

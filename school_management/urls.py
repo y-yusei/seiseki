@@ -24,8 +24,11 @@ urlpatterns = [
     # 小テスト管理
     path('sessions/<int:session_id>/quizzes/', views.quiz_list_view, name='quiz_list'),
     path('sessions/<int:session_id>/quizzes/create/', views.quiz_create_view, name='quiz_create'),
+    path('quizzes/<int:quiz_id>/', views.quiz_results_view, name='quiz_detail'),
     path('quizzes/<int:quiz_id>/grading/', views.quiz_grading_view, name='quiz_grading'),
     path('quizzes/<int:quiz_id>/results/', views.quiz_results_view, name='quiz_results'),
+    path('quizzes/<int:quiz_id>/questions/', views.question_manage_view, name='question_manage'),
+    path('quizzes/<int:quiz_id>/questions/create/', views.question_create_view, name='question_create'),
     
     # 学生管理
     path('students/', views.student_list_view, name='student_list'),
