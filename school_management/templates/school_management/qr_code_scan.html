@@ -16,9 +16,20 @@
                     {% if qr_code %}
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle fa-2x mb-3"></i>
-                            <h4>スキャン成功！</h4>
+                            <h4>🎉 スキャン成功！</h4>
                             <p class="mb-2">{{ qr_code.student.full_name }}さんのQRコードをスキャンしました。</p>
-                            <p class="mb-0"><strong>{{ qr_code.student.full_name }}さんのポイントが1点増加しました！</strong></p>
+                            <p class="mb-0">
+                                <strong class="text-success">
+                                    <i class="fas fa-star me-1"></i>
+                                    {{ qr_code.student.full_name }}さんのポイントが <span class="badge bg-success fs-6">+1</span> 増加しました！
+                                </strong>
+                            </p>
+                            <p class="mt-2 mb-0">
+                                <small class="text-muted">
+                                    <i class="fas fa-user-tie me-1"></i>
+                                    先生としてポイントを付与しました
+                                </small>
+                            </p>
                         </div>
                         
                         <div class="row mt-4">
@@ -28,30 +39,33 @@
                                         <h5 class="card-title">スキャン情報</h5>
                                         <p class="mb-1"><strong>QRコード所有者:</strong> {{ qr_code.student.full_name }}</p>
                                         <p class="mb-1"><strong>学籍番号:</strong> {{ qr_code.student.student_number }}</p>
-                                        <p class="mb-1"><strong>付与ポイント:</strong> 1点</p>
+                                        <p class="mb-1">
+                                            <strong>付与ポイント:</strong> 
+                                            <span class="badge bg-success fs-6">+1点</span>
+                                        </p>
                                         <p class="mb-0"><strong>スキャン日時:</strong> {{ scan_time }}</p>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h5 class="card-title">あなたの情報</h5>
-                                        <p class="mb-1"><strong>名前:</strong> {{ request.user.full_name }}</p>
-                                        <p class="mb-1"><strong>学籍番号:</strong> {{ request.user.student_number }}</p>
-                                        <p class="mb-1"><strong>現在のポイント:</strong> {{ request.user.points }}点</p>
-                                        <p class="mb-0"><strong>スキャンした回数:</strong> {{ user_scan_count }}回</p>
+                                                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">先生の情報</h5>
+                                            <p class="mb-1"><strong>名前:</strong> {{ request.user.full_name }}</p>
+                                            <p class="mb-1"><strong>教員ID:</strong> {{ request.user.teacher_id|default:"-" }}</p>
+                                            <p class="mb-1"><strong>役割:</strong> {{ request.user.get_role_display }}</p>
+                                            <p class="mb-0"><strong>スキャンした回数:</strong> {{ user_scan_count }}回</p>
+                                        </div>
                                     </div>
-                                </div>
                             </div>
                         </div>
                         
                         <div class="mt-4">
-                            <a href="{% url 'school_management:student_dashboard' %}" class="btn btn-primary me-2">
-                                <i class="fas fa-home me-1"></i>ダッシュボードに戻る
+                            <a href="{% url 'school_management:qr_code_list' %}" class="btn btn-primary me-2">
+                                <i class="fas fa-home me-1"></i>QRコード一覧に戻る
                             </a>
-                            <a href="{% url 'school_management:student_qr_code' %}" class="btn btn-outline-primary">
-                                <i class="fas fa-qrcode me-1"></i>マイQRコード
+                            <a href="{% url 'school_management:class_qr_codes' qr_code.student.classroom_set.first.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-chalkboard me-1"></i>クラスQRコード
                             </a>
                         </div>
                     {% else %}

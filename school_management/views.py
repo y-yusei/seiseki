@@ -1,4 +1,4 @@
-git from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -1591,7 +1591,7 @@ def qr_code_detail(request, student_id):
 
 
 def qr_code_scan(request, qr_code_id):
-    """QRコードスキャン処理"""
+    """QRコードスキャン処理（先生専用）"""
     try:
         qr_code = get_object_or_404(StudentQRCode, qr_code_id=qr_code_id, is_active=True)
         
@@ -1600,16 +1600,12 @@ def qr_code_scan(request, qr_code_id):
             messages.warning(request, 'QRコードをスキャンするにはログインが必要です。')
             return redirect('school_management:login')
         
-        # 自分自身のQRコードはスキャンできない
-        if request.user == qr_code.student:
-            messages.error(request, '自分のQRコードはスキャンできません。')
+        # 先生のみスキャン可能
+        if not request.user.is_teacher:
+            messages.error(request, 'QRコードのスキャンは先生のみ可能です。')
             return redirect('school_management:student_dashboard')
         
-        # 既にスキャン済みかチェック
-        existing_scan = QRCodeScan.objects.filter(qr_code=qr_code, scanned_by=request.user).first()
-        if existing_scan:
-            messages.info(request, f'{qr_code.student.full_name}さんのQRコードは既にスキャン済みです。')
-            return redirect('school_management:student_dashboard')
+        # 先生は何回でもスキャン可能（重複チェックを削除）
         
         # スキャン処理
         scan = QRCodeScan.objects.create(
@@ -1626,12 +1622,21 @@ def qr_code_scan(request, qr_code_id):
         qr_code.last_used_at = timezone.now()
         qr_code.save()
         
-        messages.success(request, f'{qr_code.student.full_name}さんのQRコードをスキャンしました！ポイントが1点増加しました。')
+        # スキャン成功ページを表示
+        user_scan_count = QRCodeScan.objects.filter(scanned_by=request.user).count()
+        context = {
+            'qr_code': qr_code,
+            'scan_time': timezone.now().strftime('%Y年%m月%d日 %H:%M'),
+            'user_scan_count': user_scan_count,
+        }
+        return render(request, 'school_management/qr_code_scan.html', context)
         
     except Exception as e:
-        messages.error(request, f'QRコードのスキャンに失敗しました: {str(e)}')
-    
-    return redirect('school_management:student_dashboard')
+        context = {
+            'qr_code': None,
+            'error_message': f'QRコードのスキャンに失敗しました: {str(e)}'
+        }
+        return render(request, 'school_management/qr_code_scan.html', context)
 
 
 @login_required

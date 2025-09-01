@@ -83,9 +83,11 @@
                         </a>
                     </div>
                     <div class="col-md-6">
-                        <button class="btn btn-success w-100 h-100 d-flex align-items-center justify-content-center" onclick="openQRScanner()">
-                            <i class="fas fa-camera me-2"></i>QRコードスキャン
-                        </button>
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <h6>QRコードスキャン</h6>
+                            <p class="mb-0 small">先生があなたのQRコードをスキャンすると、ポイントが1点増加します。</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -196,75 +198,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('学生ダッシュボードが読み込まれました');
 });
 
-function openQRScanner() {
-    // カメラアクセスを要求
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        // カメラアクセスが可能な場合
-        const modal = document.createElement('div');
-        modal.className = 'modal fade';
-        modal.id = 'qrScannerModal';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">QRコードスキャン</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body text-center">
-                        <div id="qr-video-container">
-                            <video id="qr-video" width="100%" height="400" autoplay></video>
-                        </div>
-                        <div id="qr-result" class="mt-3" style="display: none;">
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle me-2"></i>
-                                QRコードを検出しました！
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="button" class="btn btn-primary" id="scanQRBtn">手動でURL入力</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        const modalInstance = new bootstrap.Modal(modal);
-        modalInstance.show();
-        
-        // 手動URL入力ボタンのイベント
-        document.getElementById('scanQRBtn').addEventListener('click', function() {
-            const url = prompt('QRコードのURLを入力してください:');
-            if (url) {
-                // URLからqr_code_idを抽出
-                const match = url.match(/qr-codes\/scan\/([a-f0-9-]+)/);
-                if (match) {
-                    window.location.href = url;
-                } else {
-                    alert('無効なQRコードURLです。');
-                }
-            }
-        });
-        
-        // モーダルが閉じられたときの処理
-        modal.addEventListener('hidden.bs.modal', function() {
-            document.body.removeChild(modal);
-        });
-        
-    } else {
-        // カメラアクセスができない場合、手動入力に誘導
-        const url = prompt('QRコードのURLを入力してください:');
-        if (url) {
-            // URLからqr_code_idを抽出
-            const match = url.match(/qr-codes\/scan\/([a-f0-9-]+)/);
-            if (match) {
-                window.location.href = url;
-            } else {
-                alert('無効なQRコードURLです。');
-            }
-        }
-    }
-}
+
 </script>
 {% endblock %}
