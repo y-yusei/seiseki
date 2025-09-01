@@ -1,0 +1,72 @@
+{% extends 'school_management/base.html' %}
+
+{% block title %}{{ classroom.class_name }} - QRコード一覧{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="card-title mb-0">
+                            <i class="fas fa-qrcode me-2"></i>{{ classroom.class_name }} - QRコード一覧
+                        </h2>
+                        <a href="{% url 'school_management:class_detail' classroom.id %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>クラス詳細に戻る
+                        </a>
+                    </div>
+                    <p class="text-muted mb-0 mt-2">
+                        {{ classroom.year }}年度 {{ classroom.get_semester_display }} - 在籍学生数: {{ qr_codes|length }}名
+                    </p>
+                </div>
+                <div class="card-body">
+                    {% if qr_codes %}
+                        <div class="row">
+                            {% for qr_data in qr_codes %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">{{ qr_data.student.full_name }}</h5>
+                                        <small class="text-muted">{{ qr_data.student.student_number }}</small>
+                                    </div>
+                                    <div class="card-body text-center">
+                                        {% if qr_data.qr_image %}
+                                            <img src="{{ qr_data.qr_image }}" alt="QRコード" class="img-fluid mb-3" style="max-width: 200px;">
+                                        {% else %}
+                                            <div class="alert alert-warning">QRコード生成エラー</div>
+                                        {% endif %}
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="badge bg-primary">スキャン数: {{ qr_data.scan_count }}</span>
+                                            <span class="badge bg-success">ポイント: {{ qr_data.student.points }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <div class="d-grid gap-2">
+                                            <a href="{% url 'school_management:qr_code_detail' qr_data.student.id %}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye me-1"></i>詳細を見る
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h4 class="text-muted">このクラスに在籍している学生が登録されていません</h4>
+                            <p class="text-muted">まず学生をクラスに追加してください。</p>
+                            <a href="{% url 'school_management:class_detail' classroom.id %}" class="btn btn-primary">
+                                <i class="fas fa-arrow-left me-1"></i>クラス詳細に戻る
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

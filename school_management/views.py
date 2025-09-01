@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect, get_object_or_404
+git from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,11 +9,11 @@ from django.middleware.csrf import get_token
 from django.db.models import Avg, Count, Q, Max
 from django.db import models
 from django.utils import timezone
-from django.urls import reverse
 import qrcode
 import io
 import base64
 from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser, StudentQRCode, QRCodeScan
+from django.urls import reverse
 
 def login_view(request):
     """ログイン画面"""
@@ -1520,6 +1520,48 @@ def qr_code_list(request):
 
 
 @login_required
+def class_qr_codes(request, class_id):
+    """クラス別QRコード表示"""
+    if not request.user.is_teacher:
+        messages.error(request, '教員のみアクセス可能です。')
+        return redirect('school_management:dashboard')
+    
+    # クラスを取得
+    classroom = get_object_or_404(ClassRoom, id=class_id)
+    
+    # 教員がこのクラスを担当しているかチェック
+    if request.user not in classroom.teachers.all():
+        messages.error(request, 'このクラスにアクセスする権限がありません。')
+        return redirect('school_management:dashboard')
+    
+    # このクラスに在籍している学生のみを取得
+    students = classroom.students.all()
+    
+    # 各学生のQRコード情報を取得
+    qr_codes = []
+    for student in students:
+        qr_code, created = StudentQRCode.objects.get_or_create(
+            student=student,
+            defaults={'is_active': True}
+        )
+        scan_url = request.build_absolute_uri(
+            reverse('school_management:qr_code_scan', kwargs={'qr_code_id': qr_code.qr_code_id})
+        )
+        qr_codes.append({
+            'student': student,
+            'qr_code': qr_code,
+            'scan_count': qr_code.scans.count(),
+            'qr_image': generate_qr_code_image(scan_url)
+        })
+    
+    context = {
+        'classroom': classroom,
+        'qr_codes': qr_codes,
+    }
+    return render(request, 'school_management/class_qr_codes.html', context)
+
+
+@login_required
 def qr_code_detail(request, student_id):
     """学生のQRコード詳細表示"""
     if not request.user.is_teacher:
@@ -1584,21 +1626,12 @@ def qr_code_scan(request, qr_code_id):
         qr_code.last_used_at = timezone.now()
         qr_code.save()
         
-        # スキャン成功ページを表示
-        user_scan_count = QRCodeScan.objects.filter(scanned_by=request.user).count()
-        context = {
-            'qr_code': qr_code,
-            'scan_time': timezone.now().strftime('%Y年%m月%d日 %H:%M'),
-            'user_scan_count': user_scan_count,
-        }
-        return render(request, 'school_management/qr_code_scan.html', context)
+        messages.success(request, f'{qr_code.student.full_name}さんのQRコードをスキャンしました！ポイントが1点増加しました。')
         
     except Exception as e:
-        context = {
-            'qr_code': None,
-            'error_message': f'QRコードのスキャンに失敗しました: {str(e)}'
-        }
-        return render(request, 'school_management/qr_code_scan.html', context)
+        messages.error(request, f'QRコードのスキャンに失敗しました: {str(e)}')
+    
+    return redirect('school_management:student_dashboard')
 
 
 @login_required
@@ -1615,14 +1648,11 @@ def student_qr_code_view(request):
     
     # スキャン履歴を取得
     scans = qr_code.scans.select_related('scanned_by').order_by('-scanned_at')
-    scan_url = request.build_absolute_uri(
-        reverse('school_management:qr_code_scan', kwargs={'qr_code_id': qr_code.qr_code_id})
-    )
     
     context = {
         'qr_code': qr_code,
         'scans': scans,
-        'qr_image': generate_qr_code_image(scan_url),
+        'qr_image': generate_qr_code_image(qr_code.qr_code_url),
         'total_points': scans.aggregate(total=models.Sum('points_awarded'))['total'] or 0,
     }
     return render(request, 'school_management/student_qr_code.html', context)
