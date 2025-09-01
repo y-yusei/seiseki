@@ -1106,6 +1106,9 @@ def group_management(request, session_id):
     groups = Group.objects.filter(lesson_session=lesson_session).prefetch_related('groupmember_set__student')
     
     if request.method == 'POST':
+        # デバッグ用：送信されたPOSTデータを確認
+        print("POST data:", dict(request.POST))
+        
         # 既存のグループを削除
         Group.objects.filter(lesson_session=lesson_session).delete()
         
@@ -1119,21 +1122,27 @@ def group_management(request, session_id):
             group = Group.objects.create(
                 lesson_session=lesson_session,
                 group_number=group_num,
-                group_name=group_name
+                group_name=group_name if group_name else f'グループ{group_num}'
             )
             
             # グループメンバーを追加
             member_keys = [key for key in request.POST.keys() if key.startswith(f'group_{group_num}_member_')]
+            print(f"Group {group_num} member keys:", member_keys)
+            
             for key in member_keys:
                 student_id = request.POST.get(key)
                 if student_id:
-                    student = Student.objects.get(student_number=student_id)
-                    role = request.POST.get(f'group_{group_num}_role_{key.split("_")[-1]}', '')
-                    GroupMember.objects.create(
-                        group=group,
-                        student=student,
-                        role=role
-                    )
+                    try:
+                        student = CustomUser.objects.get(student_number=student_id, role='student')
+                        role = request.POST.get(f'group_{group_num}_role_{key.split("_")[-1]}', '')
+                        GroupMember.objects.create(
+                            group=group,
+                            student=student,
+                            role=role
+                        )
+                        print(f"Added student {student_id} to group {group_num}")
+                    except CustomUser.DoesNotExist:
+                        messages.warning(request, f'学籍番号 {student_id} の学生が見つかりません。')
         
         messages.success(request, 'グループ編成を保存しました。')
         return redirect('school_management:group_management', session_id=session_id)
