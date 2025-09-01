@@ -41,6 +41,8 @@ class CustomUser(AbstractUser):
     username = None  # usernameフィールドを無効化
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100, verbose_name='氏名')
+    furigana = models.CharField(max_length=100, blank=True, verbose_name='ふりがな')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
     role = models.CharField(
         max_length=10, 
         choices=ROLE_CHOICES, 
@@ -224,6 +226,51 @@ class QuizScore(models.Model):
 
     def __str__(self):
         return f"{self.quiz} - {self.student.full_name}: {self.score}点"
+
+
+class Question(models.Model):
+    """小テストの問題"""
+    QUESTION_TYPE_CHOICES = [
+        ('multiple_choice', '選択問題'),
+        ('true_false', '正誤問題'),
+        ('short_answer', '記述問題'),
+    ]
+    
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, verbose_name='小テスト', related_name='questions')
+    question_text = models.TextField(verbose_name='問題文')
+    question_type = models.CharField(
+        max_length=20,
+        choices=QUESTION_TYPE_CHOICES,
+        default='multiple_choice',
+        verbose_name='問題形式'
+    )
+    points = models.IntegerField(default=1, verbose_name='配点')
+    order = models.IntegerField(default=1, verbose_name='出題順')
+    correct_answer = models.TextField(blank=True, verbose_name='正解（記述問題用）')
+    
+    class Meta:
+        verbose_name = '問題'
+        verbose_name_plural = '問題'
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.quiz.quiz_name} - 問題{self.order}"
+
+
+class QuestionChoice(models.Model):
+    """問題の選択肢"""
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, verbose_name='問題', related_name='choices')
+    choice_text = models.CharField(max_length=500, verbose_name='選択肢')
+    is_correct = models.BooleanField(default=False, verbose_name='正解')
+    order = models.IntegerField(default=1, verbose_name='表示順')
+    
+    class Meta:
+        verbose_name = '選択肢'
+        verbose_name_plural = '選択肢'
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.question} - {self.choice_text}"
 
 
 class PeerEvaluation(models.Model):

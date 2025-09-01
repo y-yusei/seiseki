@@ -4,12 +4,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.middleware.csrf import get_token
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Max
+from django.db import models
 # import qrcode  # 一時的にコメントアウト
 # import io
 # import base64
-from .models import ClassRoom, Student, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser
+from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser
 
 def login_view(request):
     """ログイン画面"""
@@ -284,7 +286,7 @@ def student_list_view(request):
 @login_required
 def student_detail_view(request, student_number):
     """学生詳細"""
-    student = get_object_or_404(Student, student_number=student_number, role='student')
+    student = get_object_or_404(CustomUser, student_number=student_number, role='student')
     
     # 所属クラス一覧
     classes = student.classroom_set.all()
@@ -294,6 +296,65 @@ def student_detail_view(request, student_number):
         'classes': classes,
     }
     return render(request, 'school_management/student_detail.html', context)
+
+@login_required
+def class_student_detail_view(request, class_id, student_number):
+    """クラス内の学生詳細"""
+    classroom = get_object_or_404(ClassRoom, id=class_id)
+    student = get_object_or_404(CustomUser, student_number=student_number, role='student')
+    
+    # 学生がこのクラスに所属しているかチェック
+    if not classroom.students.filter(student_number=student_number).exists():
+        messages.error(request, 'この学生は指定されたクラスに所属していません。')
+        return redirect('school_management:class_detail', class_id=class_id)
+    
+    # クラス内での学生の成績やアクティビティを取得
+    class_sessions = LessonSession.objects.filter(classroom=classroom).order_by('-date')
+    
+    # このクラスでのクイズ成績を取得
+    quiz_scores = QuizScore.objects.filter(
+        student=student,
+        quiz__lesson_session__classroom=classroom
+    ).select_related('quiz', 'quiz__lesson_session').order_by('-quiz__lesson_session__date')
+    
+    # このクラスでの出席記録を取得
+    attendance_records = Attendance.objects.filter(
+        student=student,
+        lesson_session__classroom=classroom
+    ).select_related('lesson_session').order_by('-lesson_session__date')
+    
+    # このクラスでのピア評価を取得（学生が所属するグループによる評価）
+    # まず学生が所属するグループを取得
+    student_groups = GroupMember.objects.filter(student=student).values_list('group', flat=True)
+    
+    peer_evaluations = PeerEvaluation.objects.filter(
+        evaluator_group__in=student_groups,
+        lesson_session__classroom=classroom
+    ).select_related('lesson_session').order_by('-created_at')
+    
+    # 統計情報を計算
+    total_quizzes = quiz_scores.count()
+    avg_score = quiz_scores.aggregate(avg=Avg('score'))['avg'] or 0
+    attendance_count = attendance_records.filter(status='present').count()
+    total_sessions = class_sessions.count()
+    attendance_rate = (attendance_count / total_sessions * 100) if total_sessions > 0 else 0
+    
+    context = {
+        'classroom': classroom,
+        'student': student,
+        'class_sessions': class_sessions[:5],  # 最新5セッション
+        'quiz_scores': quiz_scores[:10],  # 最新10件のクイズ成績
+        'attendance_records': attendance_records[:10],  # 最新10件の出席記録
+        'peer_evaluations': peer_evaluations[:10],  # 最新10件のピア評価
+        'stats': {
+            'total_quizzes': total_quizzes,
+            'avg_score': round(avg_score, 1),
+            'attendance_count': attendance_count,
+            'total_sessions': total_sessions,
+            'attendance_rate': round(attendance_rate, 1),
+        }
+    }
+    return render(request, 'school_management/class_student_detail.html', context)
 
 @login_required
 def student_create_view(request):
@@ -699,6 +760,8 @@ def quiz_grading_view(request, quiz_id):
         
         if action == 'save_scores':
             # 採点結果保存
+            teacher = request.user  # 現在のユーザーを採点者として使用
+            
             for student in students:
                 score_value = request.POST.get(f'score_{student.student_number}')
                 if score_value and score_value.strip():
@@ -711,7 +774,8 @@ def quiz_grading_view(request, quiz_id):
                             QuizScore.objects.create(
                                 quiz=quiz,
                                 student=student,
-                                score=score
+                                score=score,
+                                graded_by=teacher
                             )
                     except ValueError:
                         pass  # 無効な値は無視
@@ -753,6 +817,107 @@ def quiz_results_view(request, quiz_id):
         'stats': stats,
     }
     return render(request, 'school_management/quiz_results.html', context)
+
+
+@login_required
+def question_create_view(request, quiz_id):
+    """小テスト問題作成"""
+    from .models import Question, QuestionChoice
+    
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    # 小テストの所属する授業回の教員かどうか確認
+    if not quiz.lesson_session.classroom.teachers.filter(id=request.user.id).exists():
+        return redirect('school_management:dashboard')
+    
+    if request.method == 'POST':
+        question_text = request.POST.get('question_text')
+        question_type = request.POST.get('question_type')
+        points = int(request.POST.get('points', 1))
+        
+        # 問題の順番を決定
+        last_order = Question.objects.filter(quiz=quiz).aggregate(
+            max_order=Max('order')
+        )['max_order'] or 0
+        
+        question = Question.objects.create(
+            quiz=quiz,
+            question_text=question_text,
+            question_type=question_type,
+            points=points,
+            order=last_order + 1
+        )
+        
+        # 選択問題または正誤問題の場合、選択肢を作成
+        if question_type in ['multiple_choice', 'true_false']:
+            if question_type == 'true_false':
+                # 正誤問題の場合、True/Falseの選択肢を自動作成
+                QuestionChoice.objects.create(
+                    question=question,
+                    choice_text='正しい',
+                    is_correct=request.POST.get('correct_answer') == 'true',
+                    order=1
+                )
+                QuestionChoice.objects.create(
+                    question=question,
+                    choice_text='間違い',
+                    is_correct=request.POST.get('correct_answer') == 'false',
+                    order=2
+                )
+            else:
+                # 選択問題の場合、入力された選択肢を作成
+                choice_texts = request.POST.getlist('choice_text')
+                correct_choice_index = int(request.POST.get('correct_choice', 0))
+                
+                for i, choice_text in enumerate(choice_texts):
+                    if choice_text.strip():  # 空でない選択肢のみ作成
+                        QuestionChoice.objects.create(
+                            question=question,
+                            choice_text=choice_text.strip(),
+                            is_correct=(i == correct_choice_index),
+                            order=i + 1
+                        )
+        
+        # 記述問題の場合、正解を保存
+        elif question_type == 'short_answer':
+            question.correct_answer = request.POST.get('correct_answer', '')
+            question.save()
+        
+        messages.success(request, f'問題「{question_text[:30]}...」を作成しました。')
+        return redirect('school_management:question_manage', quiz_id=quiz.id)
+    
+    # 既存の問題一覧を取得
+    questions = Question.objects.filter(quiz=quiz).prefetch_related('choices')
+    
+    context = {
+        'quiz': quiz,
+        'questions': questions,
+    }
+    return render(request, 'school_management/question_create.html', context)
+
+
+@login_required
+def question_manage_view(request, quiz_id):
+    """小テスト問題管理"""
+    from .models import Question
+    
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    # 小テストの所属する授業回の教員かどうか確認
+    if not quiz.lesson_session.classroom.teachers.filter(id=request.user.id).exists():
+        return redirect('school_management:dashboard')
+    
+    questions = Question.objects.filter(quiz=quiz).prefetch_related('choices')
+    
+    # 合計配点を計算
+    total_points = sum(question.points for question in questions)
+    
+    context = {
+        'quiz': quiz,
+        'questions': questions,
+        'total_points': total_points,
+    }
+    return render(request, 'school_management/question_manage.html', context)
 
 
 # 授業セッション管理
@@ -1260,3 +1425,49 @@ def peer_evaluation_results(request, session_id):
     }
     
     return render(request, 'school_management/peer_evaluation_results.html', context)
+
+# 学生のポイント更新
+@login_required
+@csrf_exempt
+@require_POST
+def update_student_points(request, student_id):
+    """学生のポイントを更新する"""
+    if request.method == 'POST' and request.headers.get('content-type') == 'application/json':
+        try:
+            import json
+            data = json.loads(request.body)
+            points = data.get('points', 0)
+            
+            student = get_object_or_404(CustomUser, id=student_id, role='student')
+            student.points = int(points)
+            student.save()
+            
+            return JsonResponse({'success': True, 'message': 'ポイントが更新されました'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': '不正なリクエストです'})
+
+# クラスから学生を除籍
+@login_required
+@csrf_exempt
+@require_POST
+def remove_student_from_class(request, student_id):
+    """学生をクラスから除籍する"""
+    if request.method == 'POST' and request.headers.get('content-type') == 'application/json':
+        try:
+            import json
+            data = json.loads(request.body)
+            class_id = data.get('class_id')
+            
+            student = get_object_or_404(CustomUser, id=student_id, role='student')
+            classroom = get_object_or_404(ClassRoom, id=class_id)
+            
+            # 学生をクラスから削除
+            classroom.students.remove(student)
+            
+            return JsonResponse({'success': True, 'message': f'{student.full_name}さんをクラスから除籍しました'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': '不正なリクエストです'})

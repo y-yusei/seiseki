@@ -30,7 +30,14 @@
                     <dd class="col-sm-8">{{ student.full_name }}</dd>
                     
                     <dt class="col-sm-4 text-end">フリガナ:</dt>
-                    <dd class="col-sm-8">{{ student.furigana }}</dd>
+                    <dd class="col-sm-8">{{ student.furigana|default:"-" }}</dd>
+                    
+                    <dt class="col-sm-4 text-end">ポイント:</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %} fs-6">
+                            {{ student.points }}pt
+                        </span>
+                    </dd>
                     
                     <dt class="col-sm-4 text-end">メールアドレス:</dt>
                     <dd class="col-sm-8">{{ student.email|default:"未設定" }}</dd>
