@@ -16,6 +16,13 @@ urlpatterns = [
     path('classes/<int:class_id>/', views.class_detail_view, name='class_detail'),
     path('classes/create/', views.class_create_view, name='class_create'),
     
+    # 学生追加（新方式） - より具体的なパターンを先に配置
+    path('classes/<int:class_id>/students/select/', views.bulk_student_add, name='class_student_select'),
+    path('classes/<int:class_id>/students/bulk-csv/', views.bulk_student_add_csv, name='bulk_student_add'),
+    
+    # クラス学生詳細 - より汎用的なパターンを後に配置
+    path('classes/<int:class_id>/students/<str:student_number>/', views.class_student_detail_view, name='class_student_detail'),
+    
     # セッション（授業回）管理
     path('classes/<int:class_id>/sessions/', views.session_list_view, name='session_list'),
     path('classes/<int:class_id>/sessions/create/', views.session_create_view, name='session_create'),
@@ -34,10 +41,8 @@ urlpatterns = [
     path('students/', views.student_list_view, name='student_list'),
     path('students/create/', views.student_create_view, name='student_create'),
     path('students/<str:student_number>/', views.student_detail_view, name='student_detail'),
-    
-    # 学生追加（新方式）
-    path('classes/<int:class_id>/students/select/', views.bulk_student_add, name='class_student_select'),
-    path('classes/<int:class_id>/students/bulk-csv/', views.bulk_student_add_csv, name='bulk_student_add'),
+    path('student/<int:student_id>/update-points/', views.update_student_points, name='update_student_points'),
+    path('student/<int:student_id>/remove-from-class/', views.remove_student_from_class, name='remove_student_from_class'),
     
     # 授業セッション管理
     path('classes/<int:class_id>/lesson-sessions/create/', views.lesson_session_create, name='lesson_session_create'),

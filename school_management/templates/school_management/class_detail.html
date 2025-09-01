@@ -4,6 +4,7 @@
 {% block page_title %}{{ classroom.class_name }}{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="row">
     <!-- クラス情報カード -->
     <div class="col-md-4">
@@ -150,18 +151,54 @@
             </div>
             <div class="card-body">
                 {% if students %}
-                    <div class="row">
-                        {% for student in students %}
-                        <div class="col-md-6 mb-2">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-user-graduate me-2 text-primary"></i>
-                                <div>
-                                    <strong>{{ student.full_name }}</strong><br>
-                                    <small class="text-muted">{{ student.student_number }}</small>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>学籍番号</th>
+                                    <th>氏名</th>
+                                    <th>ふりがな</th>
+                                    <th>ポイント</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ student.student_number }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user-graduate me-2 text-primary"></i>
+                                            <strong>{{ student.full_name }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ student.furigana|default:"-" }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %}">
+                                            {{ student.points }}pt
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'school_management:class_student_detail' classroom.id student.student_number %}" class="btn btn-outline-primary" title="詳細">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-warning" onclick="editStudentPoints({{ student.id }}, {{ student.points }})" title="ポイント編集">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="removeStudent({{ student.id }}, '{{ student.full_name }}')" title="除籍">
+                                                <i class="fas fa-user-times"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 {% else %}
                     <div class="text-center py-3">
@@ -181,4 +218,64 @@
         </a>
     </div>
 </div>
+
+<script>
+function editStudentPoints(studentId, currentPoints) {
+    const newPoints = prompt('新しいポイント数を入力してください:', currentPoints);
+    if (newPoints !== null && !isNaN(newPoints)) {
+        // AJAX呼び出しでポイントを更新
+        fetch(`{% url 'school_management:update_student_points' student_id=0 %}`.replace('0', studentId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                points: parseInt(newPoints)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('ポイントの更新に失敗しました');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('エラーが発生しました');
+        });
+    }
+}
+
+function removeStudent(studentId, studentName) {
+    if (confirm(`${studentName}さんをこのクラスから除籍しますか？`)) {
+        // AJAX呼び出しで学生を除籍
+        fetch(`{% url 'school_management:remove_student_from_class' student_id=0 %}`.replace('0', studentId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                class_id: "{{ classroom.id }}"
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('除籍に失敗しました');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('エラーが発生しました');
+        });
+    }
+}
+</script>
+
 {% endblock %}

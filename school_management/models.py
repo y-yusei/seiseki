@@ -42,6 +42,7 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100, verbose_name='氏名')
     furigana = models.CharField(max_length=100, blank=True, verbose_name='ふりがな')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
     role = models.CharField(
         max_length=10, 
         choices=ROLE_CHOICES, 
