@@ -20,7 +20,7 @@
 
 <!-- 統計カード -->
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card stats-card text-center border-primary">
             <div class="card-body">
                 <div class="card-icon text-primary mb-2">
@@ -31,7 +31,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card stats-card text-center border-success">
             <div class="card-body">
                 <div class="card-icon text-success mb-2">
@@ -42,7 +42,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card stats-card text-center border-warning">
             <div class="card-body">
                 <div class="card-icon text-warning mb-2">
@@ -50,6 +50,46 @@
                 </div>
                 <h2 class="card-title">{{ pending_evaluations|length }}</h2>
                 <p class="card-text text-muted">評価待ち</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-center border-info">
+            <div class="card-body">
+                <div class="card-icon text-info mb-2">
+                    <i class="fas fa-star fa-2x"></i>
+                </div>
+                <h2 class="card-title">{{ user.points }}</h2>
+                <p class="card-text text-muted">現在のポイント</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- クイックアクション -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt text-warning"></i> クイックアクション
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="{% url 'school_management:student_qr_code' %}" class="btn btn-primary w-100 h-100 d-flex align-items-center justify-content-center">
+                            <i class="fas fa-qrcode me-2"></i>マイQRコード
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <h6>QRコードスキャン</h6>
+                            <p class="mb-0 small">先生があなたのQRコードをスキャンすると、ポイントが1点増加します。</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -157,5 +197,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('学生ダッシュボードが読み込まれました');
 });
+
+
 </script>
 {% endblock %}

@@ -68,4 +68,11 @@ urlpatterns = [
     # 学生用匿名ピア評価フォーム
     path('peer-evaluation/<str:token>/', views.peer_evaluation_form_view, name='peer_evaluation_form'),
     path('improved-peer-evaluation/<str:token>/', views.improved_peer_evaluation_form, name='improved_peer_evaluation_form'),
+    
+    # QRコード関連
+    path('qr-codes/', views.qr_code_list, name='qr_code_list'),
+    path('qr-codes/student/<int:student_id>/', views.qr_code_detail, name='qr_code_detail'),
+    path('qr-codes/scan/<uuid:qr_code_id>/', views.qr_code_scan, name='qr_code_scan'),
+    path('my-qr-code/', views.student_qr_code_view, name='student_qr_code'),
+    path('classes/<int:class_id>/qr-codes/', views.class_qr_codes, name='class_qr_codes'),
 ]
