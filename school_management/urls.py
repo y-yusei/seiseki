@@ -41,13 +41,20 @@ urlpatterns = [
     path('students/', views.student_list_view, name='student_list'),
     path('students/create/', views.student_create_view, name='student_create'),
     path('students/<str:student_number>/', views.student_detail_view, name='student_detail'),
+    path('students/<str:student_number>/edit/', views.student_edit_view, name='student_edit'),
     path('student/<int:student_id>/update-points/', views.update_student_points, name='update_student_points'),
     path('student/<int:student_id>/remove-from-class/', views.remove_student_from_class, name='remove_student_from_class'),
     
     # 授業セッション管理
     path('classes/<int:class_id>/lesson-sessions/create/', views.lesson_session_create, name='lesson_session_create'),
     path('lesson-sessions/<int:session_id>/', views.lesson_session_detail, name='lesson_session_detail'),
-    path('lesson-sessions/<int:session_id>/groups/', views.group_management, name='group_management'),
+    
+    # グループ管理
+    path('lesson-sessions/<int:session_id>/groups/', views.group_list_view, name='group_list'),
+    path('lesson-sessions/<int:session_id>/groups/create/', views.group_management, name='group_management'),
+    path('lesson-sessions/<int:session_id>/groups/<int:group_id>/', views.group_detail_view, name='group_detail'),
+    path('lesson-sessions/<int:session_id>/groups/<int:group_id>/edit/', views.group_edit_view, name='group_edit'),
+    path('lesson-sessions/<int:session_id>/groups/<int:group_id>/delete/', views.group_delete_view, name='group_delete'),
     
     # 改善されたピア評価管理
     path('lesson-sessions/<int:session_id>/peer-evaluation-improved/create/', views.improved_peer_evaluation_create, name='improved_peer_evaluation_create'),
