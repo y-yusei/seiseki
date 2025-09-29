@@ -389,6 +389,7 @@ class QRCodeScan(models.Model):
     """QRコードスキャン履歴"""
     qr_code = models.ForeignKey(StudentQRCode, on_delete=models.CASCADE, verbose_name='QRコード', related_name='scans')
     scanned_by = models.ForeignKey(Student, on_delete=models.CASCADE, verbose_name='スキャン者', related_name='qr_scans')
+    lesson_session = models.ForeignKey(LessonSession, on_delete=models.CASCADE, verbose_name='授業セッション', related_name='qr_scans', null=True, blank=True)
     points_awarded = models.IntegerField(default=1, verbose_name='付与ポイント')
     scanned_at = models.DateTimeField(auto_now_add=True, verbose_name='スキャン日時')
     
@@ -399,3 +400,20 @@ class QRCodeScan(models.Model):
     
     def __str__(self):
         return f"{self.qr_code.student.full_name}のQRコードを{self.scanned_by.full_name}がスキャン"
+
+
+class StudentLessonPoints(models.Model):
+    """学生の授業ごとのポイント管理"""
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name='学生', related_name='lesson_points')
+    lesson_session = models.ForeignKey(LessonSession, on_delete=models.CASCADE, verbose_name='授業セッション', related_name='student_points')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
+    
+    class Meta:
+        verbose_name = '学生授業ポイント'
+        verbose_name_plural = '学生授業ポイント'
+        unique_together = ['student', 'lesson_session']  # 同じ学生の同じ授業セッションは1つのレコードのみ
+    
+    def __str__(self):
+        return f"{self.student.full_name} - {self.lesson_session.classroom.class_name} 第{self.lesson_session.session_number}回 ({self.lesson_session.date}) - {self.points}pt"
