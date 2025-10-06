@@ -88,7 +88,7 @@
                                 
                                 <div class="mb-3">
                                     <label class="form-label">1番よいと思った自分以外のグループ名 <span class="required">*</span></label>
-                                    <select name="first_place_group" class="form-select" required>
+                                    <select name="first_place_group" id="first_place_group" class="form-select" required onchange="updateSecondPlaceOptions()">
                                         <option value="">グループを選択してください</option>
                                         {% for group in groups %}
                                         <option value="グループ{{ group.group_number }}">グループ{{ group.group_number }}</option>
@@ -103,7 +103,7 @@
                                 
                                 <div class="mb-3">
                                     <label class="form-label">2番目によいと思った自分以外のグループ名 <span class="required">*</span></label>
-                                    <select name="second_place_group" class="form-select" required>
+                                    <select name="second_place_group" id="second_place_group" class="form-select" required onchange="updateFirstPlaceOptions()">
                                         <option value="">グループを選択してください</option>
                                         {% for group in groups %}
                                         <option value="グループ{{ group.group_number }}">グループ{{ group.group_number }}</option>
@@ -159,6 +159,118 @@
                         input.required = hasName;
                     });
                 });
+            }
+        }
+
+        // 1位選択時に2位の選択肢を更新
+        function updateSecondPlaceOptions() {
+            const firstSelect = document.getElementById('first_place_group');
+            const secondSelect = document.getElementById('second_place_group');
+            const selectedFirst = firstSelect.value;
+            const currentSecond = secondSelect.value;
+            
+            // 2位の選択肢をリセット
+            secondSelect.innerHTML = '<option value="">グループを選択してください</option>';
+            
+            if (selectedFirst) {
+                // 1位で選択されたグループ以外を2位の選択肢に追加
+                const groups = [
+                    {% for group in groups %}
+                    { value: "グループ{{ group.group_number }}", text: "グループ{{ group.group_number }}" }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ];
+                
+                groups.forEach(group => {
+                    if (group.value !== selectedFirst) {
+                        const option = document.createElement('option');
+                        option.value = group.value;
+                        option.textContent = group.text;
+                        secondSelect.appendChild(option);
+                    }
+                });
+                
+                // 2位が既に選択されていて、1位と同じグループだった場合はリセット
+                if (currentSecond === selectedFirst) {
+                    secondSelect.value = '';
+                } else if (currentSecond && currentSecond !== selectedFirst) {
+                    // 2位が既に選択されていて、1位と異なる場合は保持
+                    secondSelect.value = currentSecond;
+                }
+            } else {
+                // 1位が選択されていない場合は全てのグループを表示
+                const groups = [
+                    {% for group in groups %}
+                    { value: "グループ{{ group.group_number }}", text: "グループ{{ group.group_number }}" }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ];
+                
+                groups.forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.value;
+                    option.textContent = group.text;
+                    secondSelect.appendChild(option);
+                });
+                
+                // 2位の選択を保持
+                if (currentSecond) {
+                    secondSelect.value = currentSecond;
+                }
+            }
+        }
+
+        // 2位選択時に1位の選択肢を更新
+        function updateFirstPlaceOptions() {
+            const firstSelect = document.getElementById('first_place_group');
+            const secondSelect = document.getElementById('second_place_group');
+            const selectedSecond = secondSelect.value;
+            const currentFirst = firstSelect.value;
+            
+            // 1位の選択肢をリセット
+            firstSelect.innerHTML = '<option value="">グループを選択してください</option>';
+            
+            if (selectedSecond) {
+                // 2位で選択されたグループ以外を1位の選択肢に追加
+                const groups = [
+                    {% for group in groups %}
+                    { value: "グループ{{ group.group_number }}", text: "グループ{{ group.group_number }}" }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ];
+                
+                groups.forEach(group => {
+                    if (group.value !== selectedSecond) {
+                        const option = document.createElement('option');
+                        option.value = group.value;
+                        option.textContent = group.text;
+                        firstSelect.appendChild(option);
+                    }
+                });
+                
+                // 1位が既に選択されていて、2位と同じグループだった場合はリセット
+                if (currentFirst === selectedSecond) {
+                    firstSelect.value = '';
+                } else if (currentFirst && currentFirst !== selectedSecond) {
+                    // 1位が既に選択されていて、2位と異なる場合は保持
+                    firstSelect.value = currentFirst;
+                }
+            } else {
+                // 2位が選択されていない場合は全てのグループを表示
+                const groups = [
+                    {% for group in groups %}
+                    { value: "グループ{{ group.group_number }}", text: "グループ{{ group.group_number }}" }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ];
+                
+                groups.forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.value;
+                    option.textContent = group.text;
+                    firstSelect.appendChild(option);
+                });
+                
+                // 1位の選択を保持
+                if (currentFirst) {
+                    firstSelect.value = currentFirst;
+                }
             }
         }
     </script>

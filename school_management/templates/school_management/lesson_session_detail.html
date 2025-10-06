@@ -79,8 +79,8 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{% url 'school_management:group_management' lesson_session.id %}" class="btn btn-outline-info btn-sm">
-                        <i class="fas fa-users me-1"></i>グループ編成
+                    <a href="{% url 'school_management:group_list' lesson_session.id %}" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-users me-1"></i>グループ管理
                     </a>
                     {% if lesson_session.has_quiz %}
                         <a href="{% url 'school_management:quiz_list' lesson_session.id %}" class="btn btn-success btn-sm">

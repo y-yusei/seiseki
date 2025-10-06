@@ -4,7 +4,7 @@ from .models import (
     CustomUser, ClassRoom, LessonSession, 
     Group, GroupMember, Quiz, QuizScore, 
     PeerEvaluation, ContributionEvaluation,
-    StudentQRCode, QRCodeScan
+    StudentQRCode, QRCodeScan, StudentLessonPoints
 )
 
 @admin.register(CustomUser)
@@ -116,3 +116,12 @@ class QRCodeScanAdmin(admin.ModelAdmin):
     list_filter = ('points_awarded', 'scanned_at', 'qr_code__student')
     search_fields = ('qr_code__student__full_name', 'scanned_by__full_name')
     readonly_fields = ('scanned_at',)
+
+
+@admin.register(StudentLessonPoints)
+class StudentLessonPointsAdmin(admin.ModelAdmin):
+    """学生授業ポイント管理画面"""
+    list_display = ('student', 'lesson_session', 'points', 'created_at', 'updated_at')
+    list_filter = ('points', 'created_at', 'lesson_session__classroom')
+    search_fields = ('student__full_name', 'lesson_session__classroom__class_name')
+    readonly_fields = ('created_at', 'updated_at')

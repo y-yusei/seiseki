@@ -12,7 +12,7 @@ from django.utils import timezone
 import qrcode
 import io
 import base64
-from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser, StudentQRCode, QRCodeScan
+from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser, StudentQRCode, QRCodeScan, StudentLessonPoints
 from django.urls import reverse
 
 def login_view(request):
@@ -139,11 +139,27 @@ def student_dashboard(request):
         has_peer_evaluation=True
     ).order_by('-date')
     
+    # 学生の授業ごとのポイントを取得
+    lesson_points = StudentLessonPoints.objects.filter(
+        student=request.user
+    ).select_related('lesson_session__lesson').order_by('-lesson_session__session_date')
+    
+    # 総ポイントを計算
+    total_points = lesson_points.aggregate(total=models.Sum('points'))['total'] or 0
+    
+    # 累計ポイントを計算して各ポイントレコードに追加
+    cumulative_points = 0
+    for point in lesson_points:
+        cumulative_points += point.points
+        point.cumulative_points = cumulative_points
+    
     context = {
         'student_classrooms': student_classrooms,
         'recent_sessions': recent_sessions,
         'pending_evaluations': pending_evaluations,
         'total_classes': student_classrooms.count(),
+        'lesson_points': lesson_points,
+        'total_points': total_points,
     }
     return render(request, 'school_management/student_dashboard.html', context)
 
@@ -357,6 +373,46 @@ def class_student_detail_view(request, class_id, student_number):
         }
     }
     return render(request, 'school_management/class_student_detail.html', context)
+
+@login_required
+def student_edit_view(request, student_number):
+    """学生編集"""
+    student = get_object_or_404(CustomUser, student_number=student_number, role='student')
+    csrf_token = get_token(request)
+    
+    if request.method == 'POST':
+        # フォームデータの取得
+        full_name = request.POST.get('full_name')
+        furigana = request.POST.get('furigana')
+        email = request.POST.get('email')
+        points = request.POST.get('points')
+        
+        # バリデーション
+        if not full_name or not furigana:
+            messages.error(request, '氏名とふりがなは必須項目です。')
+        else:
+            try:
+                # 学生情報を更新
+                student.full_name = full_name
+                student.furigana = furigana
+                student.email = email or ''
+                
+                # ポイントの更新（数値の場合のみ）
+                if points and points.isdigit():
+                    student.points = int(points)
+                
+                student.save()
+                messages.success(request, f'{student.full_name}さんの情報を更新しました。')
+                return redirect('school_management:student_detail', student_number=student.student_number)
+                
+            except Exception as e:
+                messages.error(request, f'更新中にエラーが発生しました: {str(e)}')
+    
+    context = {
+        'student': student,
+        'csrf_token': csrf_token,
+    }
+    return render(request, 'school_management/student_edit.html', context)
 
 @login_required
 def student_create_view(request):
@@ -1101,6 +1157,44 @@ def lesson_session_detail(request, session_id):
 
 
 @login_required
+def group_list_view(request, session_id):
+    """グループ一覧表示"""
+    lesson_session = get_object_or_404(LessonSession, id=session_id, classroom__teachers=request.user)
+    groups = Group.objects.filter(lesson_session=lesson_session).prefetch_related('groupmember_set__student').order_by('group_number')
+    
+    # グループ統計情報を計算
+    group_stats = []
+    for group in groups:
+        member_count = group.groupmember_set.count()
+        group_stats.append({
+            'group': group,
+            'member_count': member_count,
+            'members': group.groupmember_set.all()
+        })
+    
+    context = {
+        'lesson_session': lesson_session,
+        'group_stats': group_stats,
+        'total_students': lesson_session.classroom.students.count(),
+        'assigned_students': sum(stat['member_count'] for stat in group_stats),
+    }
+    return render(request, 'school_management/group_list.html', context)
+
+@login_required
+def group_detail_view(request, session_id, group_id):
+    """グループ詳細表示"""
+    lesson_session = get_object_or_404(LessonSession, id=session_id, classroom__teachers=request.user)
+    group = get_object_or_404(Group, id=group_id, lesson_session=lesson_session)
+    members = group.groupmember_set.all().select_related('student')
+    
+    context = {
+        'lesson_session': lesson_session,
+        'group': group,
+        'members': members,
+    }
+    return render(request, 'school_management/group_detail.html', context)
+
+@login_required
 def group_management(request, session_id):
     """グループマスタ編集"""
     lesson_session = get_object_or_404(LessonSession, id=session_id, classroom__teachers=request.user)
@@ -1147,7 +1241,7 @@ def group_management(request, session_id):
                         messages.warning(request, f'学籍番号 {student_id} の学生が見つかりません。')
         
         messages.success(request, 'グループ編成を保存しました。')
-        return redirect('school_management:group_management', session_id=session_id)
+        return redirect('school_management:group_list', session_id=session_id)
     
     context = {
         'lesson_session': lesson_session,
@@ -1155,6 +1249,92 @@ def group_management(request, session_id):
         'groups': groups,
     }
     return render(request, 'school_management/group_management.html', context)
+
+@login_required
+def group_edit_view(request, session_id, group_id):
+    """グループ編集"""
+    lesson_session = get_object_or_404(LessonSession, id=session_id, classroom__teachers=request.user)
+    group = get_object_or_404(Group, id=group_id, lesson_session=lesson_session)
+    members = group.groupmember_set.all().select_related('student')
+    available_students = lesson_session.classroom.students.exclude(
+        id__in=members.values_list('student_id', flat=True)
+    )
+    
+    if request.method == 'POST':
+        # グループ名の更新
+        group_name = request.POST.get('group_name', '').strip()
+        group.group_name = group_name if group_name else f'グループ{group.group_number}'
+        group.save()
+        
+        # メンバーの更新
+        if 'action' in request.POST:
+            action = request.POST.get('action')
+            
+            if action == 'add_member':
+                student_id = request.POST.get('student_id')
+                role = request.POST.get('role', '')
+                if student_id:
+                    try:
+                        student = CustomUser.objects.get(id=student_id, role='student')
+                        GroupMember.objects.create(
+                            group=group,
+                            student=student,
+                            role=role
+                        )
+                        messages.success(request, f'{student.full_name}さんをグループに追加しました。')
+                    except CustomUser.DoesNotExist:
+                        messages.error(request, '学生が見つかりません。')
+            
+            elif action == 'remove_member':
+                member_id = request.POST.get('member_id')
+                if member_id:
+                    try:
+                        member = GroupMember.objects.get(id=member_id, group=group)
+                        student_name = member.student.full_name
+                        member.delete()
+                        messages.success(request, f'{student_name}さんをグループから削除しました。')
+                    except GroupMember.DoesNotExist:
+                        messages.error(request, 'メンバーが見つかりません。')
+            
+            elif action == 'update_role':
+                member_id = request.POST.get('member_id')
+                new_role = request.POST.get('new_role', '')
+                if member_id:
+                    try:
+                        member = GroupMember.objects.get(id=member_id, group=group)
+                        member.role = new_role
+                        member.save()
+                        messages.success(request, '役割を更新しました。')
+                    except GroupMember.DoesNotExist:
+                        messages.error(request, 'メンバーが見つかりません。')
+        
+        return redirect('school_management:group_edit', session_id=session_id, group_id=group_id)
+    
+    context = {
+        'lesson_session': lesson_session,
+        'group': group,
+        'members': members,
+        'available_students': available_students,
+    }
+    return render(request, 'school_management/group_edit.html', context)
+
+@login_required
+def group_delete_view(request, session_id, group_id):
+    """グループ削除"""
+    lesson_session = get_object_or_404(LessonSession, id=session_id, classroom__teachers=request.user)
+    group = get_object_or_404(Group, id=group_id, lesson_session=lesson_session)
+    
+    if request.method == 'POST':
+        group_name = group.display_name
+        group.delete()
+        messages.success(request, f'グループ「{group_name}」を削除しました。')
+        return redirect('school_management:group_list', session_id=session_id)
+    
+    context = {
+        'lesson_session': lesson_session,
+        'group': group,
+    }
+    return render(request, 'school_management/group_delete.html', context)
 
 
 @login_required
@@ -1605,18 +1785,37 @@ def qr_code_scan(request, qr_code_id):
             messages.error(request, 'QRコードのスキャンは先生のみ可能です。')
             return redirect('school_management:student_dashboard')
         
-        # 先生は何回でもスキャン可能（重複チェックを削除）
+        # 現在の授業セッションを取得（先生が担当する授業の中で今日の日付のもの）
+        from datetime import date
+        today = date.today()
+        current_session = None
+        
+        # 先生が担当する授業セッションを取得
+        teacher_sessions = LessonSession.objects.filter(
+            lesson__teachers=request.user,
+            session_date=today
+        ).order_by('-created_at')
+        
+        if teacher_sessions.exists():
+            current_session = teacher_sessions.first()
         
         # スキャン処理
         scan = QRCodeScan.objects.create(
             qr_code=qr_code,
             scanned_by=request.user,
+            lesson_session=current_session,
             points_awarded=1
         )
         
-        # QRコード所有者のポイントを増加
-        qr_code.student.points += 1
-        qr_code.student.save()
+        # 授業ごとのポイントを更新
+        if current_session:
+            student_lesson_points, created = StudentLessonPoints.objects.get_or_create(
+                student=qr_code.student,
+                lesson_session=current_session,
+                defaults={'points': 0}
+            )
+            student_lesson_points.points += 1
+            student_lesson_points.save()
         
         # QRコードの最終使用日時を更新
         qr_code.last_used_at = timezone.now()
@@ -1626,6 +1825,7 @@ def qr_code_scan(request, qr_code_id):
         user_scan_count = QRCodeScan.objects.filter(scanned_by=request.user).count()
         context = {
             'qr_code': qr_code,
+            'lesson_session': current_session,
             'scan_time': timezone.now().strftime('%Y年%m月%d日 %H:%M'),
             'user_scan_count': user_scan_count,
         }
@@ -1686,3 +1886,197 @@ def generate_qr_code_image(url):
     except Exception as e:
         print(f"QRコード生成エラー: {e}")
         return None
+
+@login_required
+def class_evaluation_view(request, class_id):
+    """クラスごとの評価一覧（写真のような形式）"""
+    classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
+    students = classroom.students.all().order_by('student_number')
+    
+    # 授業回の一覧を取得
+    sessions = LessonSession.objects.filter(classroom=classroom).order_by('session_number')
+    
+    # 各学生の評価データを取得
+    student_evaluations = []
+    
+    for student in students:
+        # このクラスの授業回でのポイントを取得
+        lesson_points = StudentLessonPoints.objects.filter(
+            student=student,
+            lesson_session__classroom=classroom
+        ).select_related('lesson_session').order_by('lesson_session__session_number')
+        
+        # 基本統計
+        total_points = sum(point.points for point in lesson_points)
+        session_count = lesson_points.count()
+        average_points = round(total_points / session_count, 1) if session_count > 0 else 0
+        
+        # 出席率（仮の計算 - 実際の出席データに基づいて調整可能）
+        attendance_rate = 100.0 if session_count > 0 else 0.0
+        
+        # 各授業回のデータ（ポイント + ピア評価スコア）
+        session_data = {}
+        for session in sessions:
+            session_key = f"第{session.session_number}回"
+            
+            # QRコードポイントを取得
+            qr_points = 0
+            try:
+                lesson_point = lesson_points.get(lesson_session=session)
+                qr_points = lesson_point.points
+            except StudentLessonPoints.DoesNotExist:
+                pass
+            
+            # ピア評価スコアを取得
+            peer_evaluation_score = 0
+            try:
+                # この学生が所属するグループを取得
+                student_groups = Group.objects.filter(
+                    lesson_session=session,
+                    groupmember__student=student
+                )
+                
+                if student_groups.exists():
+                    # この学生に対する貢献度評価の平均を計算
+                    from .models import ContributionEvaluation
+                    contribution_evaluations = ContributionEvaluation.objects.filter(
+                        peer_evaluation__lesson_session=session,
+                        evaluatee=student
+                    )
+                    
+                    if contribution_evaluations.exists():
+                        peer_evaluation_score = round(
+                            contribution_evaluations.aggregate(
+                                avg_score=models.Avg('contribution_score')
+                            )['avg_score'] or 0, 1
+                        )
+            except Exception as e:
+                print(f"ピア評価スコア取得エラー: {e}")
+                pass
+            
+            session_data[session_key] = {
+                'qr_points': qr_points,
+                'peer_score': peer_evaluation_score,
+                'total_score': qr_points + peer_evaluation_score,
+                'date': session.date,
+                'has_peer_evaluation': session.has_peer_evaluation
+            }
+        
+        # ピア評価スコアの合計を計算
+        total_peer_score = sum(data['peer_score'] for data in session_data.values())
+        total_combined_score = sum(data['total_score'] for data in session_data.values())
+        
+        student_evaluations.append({
+            'student': student,
+            'total_points': total_points,
+            'total_peer_score': total_peer_score,
+            'total_combined_score': total_combined_score,
+            'attendance_points': 0,  # 出席点（現在は0）
+            'attendance_rate': attendance_rate,
+            'multiplied_points': total_combined_score * 2,  # 倍率2倍
+            'multiplier': 2,
+            'session_data': session_data,
+            'session_count': session_count,
+            'average_points': average_points,
+        })
+    
+    session_list = [f"第{session.session_number}回" for session in sessions]
+    
+    # 各授業回のピア評価平均値を計算
+    session_peer_averages = {}
+    for session in sessions:
+        if session.has_peer_evaluation:
+            from .models import ContributionEvaluation
+            peer_scores = ContributionEvaluation.objects.filter(
+                peer_evaluation__lesson_session=session
+            ).aggregate(avg_score=models.Avg('contribution_score'))
+            
+            avg_score = round(peer_scores['avg_score'] or 0, 1)
+            session_peer_averages[session.id] = avg_score
+            print(f"Session {session.session_number}: PE average = {avg_score}")
+        else:
+            session_peer_averages[session.id] = None
+            print(f"Session {session.session_number}: No peer evaluation")
+    
+    print(f"Session peer averages: {session_peer_averages}")
+    
+    context = {
+        'classroom': classroom,
+        'student_evaluations': student_evaluations,
+        'session_list': session_list,
+        'sessions': sessions,  # 日付情報も渡す
+        'session_peer_averages': session_peer_averages,  # ピア評価平均値
+        'total_sessions': len(session_list),
+    }
+    return render(request, 'school_management/class_evaluation.html', context)
+
+@login_required
+def class_points_view(request, class_id):
+    """クラスごとのポイント一覧"""
+    classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
+    students = classroom.students.all().order_by('student_number')
+    
+    # 各学生のクラス内成績を取得
+    student_grades = []
+    
+    for student in students:
+        # このクラスの授業回でのポイントを取得
+        lesson_points = StudentLessonPoints.objects.filter(
+            student=student,
+            lesson_session__classroom=classroom
+        ).select_related('lesson_session').order_by('lesson_session__session_number')
+        
+        total_class_points = sum(point.points for point in lesson_points)
+        session_count = lesson_points.count()
+        average_points = round(total_class_points / session_count, 1) if session_count > 0 else 0
+        
+        # 成績評価
+        if average_points >= 5:
+            grade_level = '優秀'
+            grade_color = 'success'
+        elif average_points >= 3:
+            grade_level = '良好'
+            grade_color = 'warning'
+        elif average_points >= 1:
+            grade_level = '普通'
+            grade_color = 'info'
+        else:
+            grade_level = '要努力'
+            grade_color = 'secondary'
+        
+        student_grades.append({
+            'student': student,
+            'total_points': total_class_points,
+            'average_points': average_points,
+            'session_count': session_count,
+            'lesson_points': lesson_points,
+            'grade_level': grade_level,
+            'grade_color': grade_color,
+            'overall_points': student.points  # 全体のポイント（参考用）
+        })
+    
+    # 平均ポイント順でソート
+    student_grades.sort(key=lambda x: x['average_points'], reverse=True)
+    
+    # クラス全体の統計
+    total_students = len(student_grades)
+    if total_students > 0:
+        class_average = round(sum(grade['average_points'] for grade in student_grades) / total_students, 1)
+        max_average = max(grade['average_points'] for grade in student_grades)
+        min_average = min(grade['average_points'] for grade in student_grades)
+    else:
+        class_average = 0
+        max_average = 0
+        min_average = 0
+    
+    context = {
+        'classroom': classroom,
+        'student_grades': student_grades,
+        'class_stats': {
+            'total_students': total_students,
+            'class_average': class_average,
+            'max_average': max_average,
+            'min_average': min_average,
+        }
+    }
+    return render(request, 'school_management/class_points.html', context)
