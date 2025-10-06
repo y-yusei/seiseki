@@ -25,7 +25,8 @@ SECRET_KEY = 'django-insecure-rsvn^mbs%1g$gbd3t^wk7n4a9*ar7009edn@9p6(c0js4q9c#v
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver']
+# Allow all hosts in DEBUG to simplify dev access (e.g., port-forwarded domains)
+ALLOWED_HOSTS = ['*'] if DEBUG else ['127.0.0.1', 'localhost', 'testserver']
 
 
 # Application definition
