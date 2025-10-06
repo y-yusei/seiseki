@@ -12,7 +12,7 @@ from django.utils import timezone
 import qrcode
 import io
 import base64
-from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser, StudentQRCode, QRCodeScan, StudentLessonPoints
+from .models import ClassRoom, Student, Teacher, LessonSession, Quiz, QuizScore, PeerEvaluation, Attendance, Group, GroupMember, ContributionEvaluation, CustomUser, StudentQRCode, QRCodeScan, StudentLessonPoints, StudentClassPoints
 from django.urls import reverse
 
 def login_view(request):
@@ -142,7 +142,7 @@ def student_dashboard(request):
     # 学生の授業ごとのポイントを取得
     lesson_points = StudentLessonPoints.objects.filter(
         student=request.user
-    ).select_related('lesson_session__lesson').order_by('-lesson_session__session_date')
+    ).select_related('lesson_session').order_by('-lesson_session__date')
     
     # 総ポイントを計算
     total_points = lesson_points.aggregate(total=models.Sum('points'))['total'] or 0
@@ -178,7 +178,13 @@ def class_detail_view(request, class_id):
     lessons = LessonSession.objects.filter(classroom=classroom).order_by('-date')[:5]  # 最近の5件
     sessions = LessonSession.objects.filter(classroom=classroom)  # 全ての授業回（カウント用）
     peer_evaluations = PeerEvaluation.objects.filter(lesson_session__classroom=classroom)
-    
+    # テンプレート側で複雑なクエリ呼び出しを避けるため、各 student に class_point を付与
+    student_class_points = StudentClassPoints.objects.filter(classroom=classroom, student__in=students)
+    scp_map = {scp.student_id: scp for scp in student_class_points}
+    # 動的に属性を付与（テンプレートで student.class_point として参照できるようにする）
+    for s in students:
+        setattr(s, 'class_point', scp_map.get(s.id))
+
     context = {
         'classroom': classroom,
         'students': students,
@@ -1622,22 +1628,40 @@ def peer_evaluation_results(request, session_id):
 @csrf_exempt
 @require_POST
 def update_student_points(request, student_id):
-    """学生のポイントを更新する"""
+    """学生のポイントを更新する
+
+    JSON ボディで { "points": <数値>, "class_id": <クラスID optional> } を受け取る。
+    class_id が渡された場合はクラス単位の `StudentClassPoints` を更新し、
+    なければ従来通り `CustomUser.points` を更新する。
+    """
     if request.method == 'POST' and request.headers.get('content-type') == 'application/json':
         try:
             import json
             data = json.loads(request.body)
             points = data.get('points', 0)
-            
+
             student = get_object_or_404(CustomUser, id=student_id, role='student')
-            student.points = int(points)
-            student.save()
-            
+            class_id = data.get('class_id')
+
+            if class_id:
+                classroom = get_object_or_404(ClassRoom, id=class_id)
+                scp, created = StudentClassPoints.objects.get_or_create(
+                    student=student,
+                    classroom=classroom,
+                    defaults={'points': 0}
+                )
+                scp.points = int(points)
+                scp.save()
+            else:
+                student.points = int(points)
+                student.save()
+
             return JsonResponse({'success': True, 'message': 'ポイントが更新されました'})
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
-    
+
     return JsonResponse({'success': False, 'error': '不正なリクエストです'})
+
 
 # クラスから学生を除籍
 @login_required
@@ -1792,8 +1816,8 @@ def qr_code_scan(request, qr_code_id):
         
         # 先生が担当する授業セッションを取得
         teacher_sessions = LessonSession.objects.filter(
-            lesson__teachers=request.user,
-            session_date=today
+            classroom__teachers=request.user,
+            date=today
         ).order_by('-created_at')
         
         if teacher_sessions.exists():
@@ -1816,6 +1840,19 @@ def qr_code_scan(request, qr_code_id):
             )
             student_lesson_points.points += 1
             student_lesson_points.save()
+
+            # 当該クラスの累計ポイントも更新（なければ作成）
+            try:
+                scp, scp_created = StudentClassPoints.objects.get_or_create(
+                    student=qr_code.student,
+                    classroom=current_session.classroom,
+                    defaults={'points': 0}
+                )
+                scp.points += 1
+                scp.save()
+            except Exception:
+                # クラスポイント更新失敗は致命的でないため無視
+                pass
         
         # QRコードの最終使用日時を更新
         qr_code.last_used_at = timezone.now()
@@ -2044,6 +2081,12 @@ def class_points_view(request, class_id):
             grade_level = '要努力'
             grade_color = 'secondary'
         
+        # クラス単位の合計ポイントを取得（StudentClassPoints があれば優先して表示）
+        try:
+            student_class_point = StudentClassPoints.objects.get(student=student, classroom=classroom).points
+        except StudentClassPoints.DoesNotExist:
+            student_class_point = None
+
         student_grades.append({
             'student': student,
             'total_points': total_class_points,
@@ -2052,7 +2095,8 @@ def class_points_view(request, class_id):
             'lesson_points': lesson_points,
             'grade_level': grade_level,
             'grade_color': grade_color,
-            'overall_points': student.points  # 全体のポイント（参考用）
+            'overall_points': student.points,  # 全体のポイント（参考用）
+            'class_points': student_class_point,  # クラス単位のポイント（あれば表示）
         })
     
     # 平均ポイント順でソート

@@ -417,3 +417,20 @@ class StudentLessonPoints(models.Model):
     
     def __str__(self):
         return f"{self.student.full_name} - {self.lesson_session.classroom.class_name} 第{self.lesson_session.session_number}回 ({self.lesson_session.date}) - {self.points}pt"
+
+
+class StudentClassPoints(models.Model):
+    """学生ごとのクラス単位のポイント管理"""
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name='学生', related_name='class_points')
+    classroom = models.ForeignKey(ClassRoom, on_delete=models.CASCADE, verbose_name='クラス', related_name='student_class_points')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
+
+    class Meta:
+        verbose_name = '学生クラスポイント'
+        verbose_name_plural = '学生クラスポイント'
+        unique_together = ['student', 'classroom']
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.classroom.class_name} - {self.points}pt"

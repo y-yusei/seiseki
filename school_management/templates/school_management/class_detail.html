@@ -189,19 +189,33 @@
                                         <small class="text-muted">{{ student.furigana|default:"-" }}</small>
                                     </td>
                                     <td>
-                                        <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %}">
-                                            {{ student.points }}pt
-                                        </span>
+                                        {# クラス単位のポイントがある場合はそれを優先表示 #}
+                                        {% if student.class_point %}
+                                            <span class="badge bg-{% if student.class_point.points >= 80 %}success{% elif student.class_point.points >= 60 %}warning{% else %}secondary{% endif %}">
+                                                {{ student.class_point.points }}pt
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %}">
+                                                {{ student.points }}pt
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <a href="{% url 'school_management:class_student_detail' classroom.id student.student_number %}" class="btn btn-outline-primary" title="詳細">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            <button class="btn btn-outline-warning" onclick="editStudentPoints({{ student.id }}, {{ student.points }})" title="ポイント編集">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-outline-danger" onclick="removeStudent({{ student.id }}, '{{ student.full_name }}')" title="除籍">
+                                            {# ビューで student.class_point をセットしているのでそれを使う #}
+                                            {% if student.class_point %}
+                                                <button class="btn btn-outline-warning" onclick="editStudentPoints('{{ student.id }}', '{{ student.class_point.points }}')" title="ポイント編集">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            {% else %}
+                                                <button class="btn btn-outline-warning" onclick="editStudentPoints('{{ student.id }}', '{{ student.points }}')" title="ポイント編集">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger" onclick="removeStudent('{{ student.id }}', '{{ student.full_name|escapejs }}')" title="除籍">
                                                 <i class="fas fa-user-times"></i>
                                             </button>
                                         </div>
@@ -241,9 +255,10 @@ function editStudentPoints(studentId, currentPoints) {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token }}',
             },
-            body: JSON.stringify({
-                points: parseInt(newPoints)
-            })
+                    body: JSON.stringify({
+                        points: parseInt(newPoints),
+                        class_id: parseInt('{{ classroom.id }}')
+                    })
         })
         .then(response => response.json())
         .then(data => {
