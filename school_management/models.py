@@ -41,6 +41,8 @@ class CustomUser(AbstractUser):
     username = None  # usernameフィールドを無効化
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100, verbose_name='氏名')
+    furigana = models.CharField(max_length=100, blank=True, verbose_name='ふりがな')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
     role = models.CharField(
         max_length=10, 
         choices=ROLE_CHOICES, 
@@ -226,6 +228,51 @@ class QuizScore(models.Model):
         return f"{self.quiz} - {self.student.full_name}: {self.score}点"
 
 
+class Question(models.Model):
+    """小テストの問題"""
+    QUESTION_TYPE_CHOICES = [
+        ('multiple_choice', '選択問題'),
+        ('true_false', '正誤問題'),
+        ('short_answer', '記述問題'),
+    ]
+    
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, verbose_name='小テスト', related_name='questions')
+    question_text = models.TextField(verbose_name='問題文')
+    question_type = models.CharField(
+        max_length=20,
+        choices=QUESTION_TYPE_CHOICES,
+        default='multiple_choice',
+        verbose_name='問題形式'
+    )
+    points = models.IntegerField(default=1, verbose_name='配点')
+    order = models.IntegerField(default=1, verbose_name='出題順')
+    correct_answer = models.TextField(blank=True, verbose_name='正解（記述問題用）')
+    
+    class Meta:
+        verbose_name = '問題'
+        verbose_name_plural = '問題'
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.quiz.quiz_name} - 問題{self.order}"
+
+
+class QuestionChoice(models.Model):
+    """問題の選択肢"""
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, verbose_name='問題', related_name='choices')
+    choice_text = models.CharField(max_length=500, verbose_name='選択肢')
+    is_correct = models.BooleanField(default=False, verbose_name='正解')
+    order = models.IntegerField(default=1, verbose_name='表示順')
+    
+    class Meta:
+        verbose_name = '選択肢'
+        verbose_name_plural = '選択肢'
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.question} - {self.choice_text}"
+
+
 class PeerEvaluation(models.Model):
     """ピア評価"""
     lesson_session = models.ForeignKey(LessonSession, on_delete=models.CASCADE, verbose_name='授業回')
@@ -314,3 +361,59 @@ class Attendance(models.Model):
     
     def __str__(self):
         return f"{self.lesson_session} - {self.student.full_name}: {self.get_status_display()}"
+
+
+class StudentQRCode(models.Model):
+    """学生QRコード"""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, verbose_name='学生', related_name='qr_codes')
+    qr_code_id = models.UUIDField(default=uuid.uuid4, unique=True, verbose_name='QRコードID')
+    is_active = models.BooleanField(default=True, verbose_name='有効')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name='最終使用日時')
+    
+    class Meta:
+        verbose_name = '学生QRコード'
+        verbose_name_plural = '学生QRコード'
+    
+    def __str__(self):
+        return f"{self.student.full_name}のQRコード"
+    
+    @property
+    def qr_code_url(self):
+        """QRコードのURLを生成"""
+        from django.urls import reverse
+        return reverse('qr_code_scan', kwargs={'qr_code_id': self.qr_code_id})
+
+
+class QRCodeScan(models.Model):
+    """QRコードスキャン履歴"""
+    qr_code = models.ForeignKey(StudentQRCode, on_delete=models.CASCADE, verbose_name='QRコード', related_name='scans')
+    scanned_by = models.ForeignKey(Student, on_delete=models.CASCADE, verbose_name='スキャン者', related_name='qr_scans')
+    lesson_session = models.ForeignKey(LessonSession, on_delete=models.CASCADE, verbose_name='授業セッション', related_name='qr_scans', null=True, blank=True)
+    points_awarded = models.IntegerField(default=1, verbose_name='付与ポイント')
+    scanned_at = models.DateTimeField(auto_now_add=True, verbose_name='スキャン日時')
+    
+    class Meta:
+        verbose_name = 'QRコードスキャン'
+        verbose_name_plural = 'QRコードスキャン'
+        unique_together = ['qr_code', 'scanned_by']  # 同じQRコードを同じ人が複数回スキャンできないようにする
+    
+    def __str__(self):
+        return f"{self.qr_code.student.full_name}のQRコードを{self.scanned_by.full_name}がスキャン"
+
+
+class StudentLessonPoints(models.Model):
+    """学生の授業ごとのポイント管理"""
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name='学生', related_name='lesson_points')
+    lesson_session = models.ForeignKey(LessonSession, on_delete=models.CASCADE, verbose_name='授業セッション', related_name='student_points')
+    points = models.IntegerField(default=0, verbose_name='ポイント')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
+    
+    class Meta:
+        verbose_name = '学生授業ポイント'
+        verbose_name_plural = '学生授業ポイント'
+        unique_together = ['student', 'lesson_session']  # 同じ学生の同じ授業セッションは1つのレコードのみ
+    
+    def __str__(self):
+        return f"{self.student.full_name} - {self.lesson_session.classroom.class_name} 第{self.lesson_session.session_number}回 ({self.lesson_session.date}) - {self.points}pt"

@@ -4,6 +4,7 @@
 {% block page_title %}{{ classroom.class_name }}{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="row">
     <!-- クラス情報カード -->
     <div class="col-md-4">
@@ -130,38 +131,85 @@
         <div class="card mt-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-users me-2"></i>在籍学生 ({{ students.count }}名)</h5>
-                <div class="dropdown">
-                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="fas fa-user-plus me-1"></i>学生を追加
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li>
-                            <a class="dropdown-item" href="{% url 'school_management:class_student_select' classroom.id %}">
-                                <i class="fas fa-user-check me-2"></i>既存学生から選択
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="{% url 'school_management:bulk_student_add' classroom.id %}">
-                                <i class="fas fa-file-csv me-2"></i>CSV一括追加
-                            </a>
-                        </li>
-                    </ul>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'school_management:class_evaluation' classroom.id %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-chart-bar me-1"></i>評価一覧
+                    </a>
+                    <a href="{% url 'school_management:class_points' classroom.id %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-trophy me-1"></i>ポイント一覧
+                    </a>
+                    <a href="{% url 'school_management:class_qr_codes' classroom.id %}" class="btn btn-warning btn-sm">
+                        <i class="fas fa-qrcode me-1"></i>QRコード表示
+                    </a>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-plus me-1"></i>学生を追加
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'school_management:class_student_select' classroom.id %}">
+                                    <i class="fas fa-user-check me-2"></i>既存学生から選択
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'school_management:bulk_student_add' classroom.id %}">
+                                    <i class="fas fa-file-csv me-2"></i>CSV一括追加
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
                 {% if students %}
-                    <div class="row">
-                        {% for student in students %}
-                        <div class="col-md-6 mb-2">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-user-graduate me-2 text-primary"></i>
-                                <div>
-                                    <strong>{{ student.full_name }}</strong><br>
-                                    <small class="text-muted">{{ student.student_number }}</small>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>学籍番号</th>
+                                    <th>氏名</th>
+                                    <th>ふりがな</th>
+                                    <th>ポイント</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ student.student_number }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user-graduate me-2 text-primary"></i>
+                                            <strong>{{ student.full_name }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ student.furigana|default:"-" }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %}">
+                                            {{ student.points }}pt
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'school_management:class_student_detail' classroom.id student.student_number %}" class="btn btn-outline-primary" title="詳細">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-warning" onclick="editStudentPoints({{ student.id }}, {{ student.points }})" title="ポイント編集">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="removeStudent({{ student.id }}, '{{ student.full_name }}')" title="除籍">
+                                                <i class="fas fa-user-times"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 {% else %}
                     <div class="text-center py-3">
@@ -181,4 +229,64 @@
         </a>
     </div>
 </div>
+
+<script>
+function editStudentPoints(studentId, currentPoints) {
+    const newPoints = prompt('新しいポイント数を入力してください:', currentPoints);
+    if (newPoints !== null && !isNaN(newPoints)) {
+        // AJAX呼び出しでポイントを更新
+        fetch(`{% url 'school_management:update_student_points' student_id=0 %}`.replace('0', studentId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                points: parseInt(newPoints)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('ポイントの更新に失敗しました');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('エラーが発生しました');
+        });
+    }
+}
+
+function removeStudent(studentId, studentName) {
+    if (confirm(`${studentName}さんをこのクラスから除籍しますか？`)) {
+        // AJAX呼び出しで学生を除籍
+        fetch(`{% url 'school_management:remove_student_from_class' student_id=0 %}`.replace('0', studentId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                class_id: "{{ classroom.id }}"
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('除籍に失敗しました');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('エラーが発生しました');
+        });
+    }
+}
+</script>
+
 {% endblock %}
