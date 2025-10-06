@@ -6,6 +6,7 @@ from .models import (
     PeerEvaluation, ContributionEvaluation,
     StudentQRCode, QRCodeScan, StudentLessonPoints
 )
+from .models import StudentClassPoints
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
@@ -124,4 +125,13 @@ class StudentLessonPointsAdmin(admin.ModelAdmin):
     list_display = ('student', 'lesson_session', 'points', 'created_at', 'updated_at')
     list_filter = ('points', 'created_at', 'lesson_session__classroom')
     search_fields = ('student__full_name', 'lesson_session__classroom__class_name')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(StudentClassPoints)
+class StudentClassPointsAdmin(admin.ModelAdmin):
+    """クラスごとの学生ポイント管理画面"""
+    list_display = ('student', 'classroom', 'points', 'created_at', 'updated_at')
+    list_filter = ('classroom', 'points', 'created_at')
+    search_fields = ('student__full_name', 'classroom__class_name')
     readonly_fields = ('created_at', 'updated_at')
