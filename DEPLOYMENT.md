@@ -113,11 +113,17 @@ railway run python manage.py collectstatic --noinput
 
 3. データベースが正しく接続されているか確認
 
-### 静的ファイルが表示されない場合
+### 静的ファイル（CSS/JS）が表示されない場合
+
+**重要**: `nixpacks.toml`ファイルがビルド時に`collectstatic`を自動実行します。
 
 1. `DEBUG=False` が設定されていることを確認
 2. WhiteNoiseが正しくインストールされていることを確認
-3. `python manage.py collectstatic` が実行されていることを確認
+3. デプロイログで`collectstatic`が実行されていることを確認
+4. 手動で実行する場合：
+   ```powershell
+   railway run python manage.py collectstatic --noinput
+   ```
 
 ### データベース接続エラー
 
