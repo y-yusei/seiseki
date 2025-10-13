@@ -66,18 +66,19 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="points" class="form-label">ポイント</label>
-                                <input type="number" class="form-control" id="points" name="points" 
-                                       value="{{ student.points }}" min="0">
-                                <div class="form-text">現在のポイント数</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
                                 <label for="role" class="form-label">役割</label>
                                 <input type="text" class="form-control" id="role" 
                                        value="{{ student.get_role_display }}" readonly>
                                 <div class="form-text">役割は変更できません</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">ポイント</label>
+                                <div class="form-control-plaintext text-muted">
+                                    クラスごとに独立管理されています
+                                </div>
+                                <div class="form-text">各クラスの詳細ページから更新してください</div>
                             </div>
                         </div>
                     </div>
@@ -128,7 +129,6 @@
                     <li><i class="fas fa-check text-success me-2"></i>氏名</li>
                     <li><i class="fas fa-check text-success me-2"></i>フリガナ</li>
                     <li><i class="fas fa-check text-success me-2"></i>メールアドレス</li>
-                    <li><i class="fas fa-check text-success me-2"></i>ポイント</li>
                 </ul>
             </div>
         </div>

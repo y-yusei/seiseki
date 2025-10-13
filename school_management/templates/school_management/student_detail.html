@@ -32,15 +32,13 @@
                     <dt class="col-sm-4 text-end">フリガナ:</dt>
                     <dd class="col-sm-8">{{ student.furigana|default:"-" }}</dd>
                     
-                    <dt class="col-sm-4 text-end">ポイント:</dt>
-                    <dd class="col-sm-8">
-                        <span class="badge bg-{% if student.points >= 80 %}success{% elif student.points >= 60 %}warning{% else %}secondary{% endif %} fs-6">
-                            {{ student.points }}pt
-                        </span>
-                    </dd>
-                    
                     <dt class="col-sm-4 text-end">メールアドレス:</dt>
                     <dd class="col-sm-8">{{ student.email|default:"未設定" }}</dd>
+                    
+                    <dt class="col-sm-4 text-end">ポイント:</dt>
+                    <dd class="col-sm-8">
+                        <small class="text-muted">※クラスごとに独立管理（下記の所属クラス欄で確認）</small>
+                    </dd>
                     
                     {% if student.memo %}
                     <dt class="col-sm-4 text-end">備考:</dt>
@@ -65,26 +63,32 @@
                                     <th>年度</th>
                                     <th>学期</th>
                                     <th>担当教師</th>
+                                    <th>ポイント</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for classroom in classes %}
+                                {% for data in class_data %}
                                 <tr>
-                                    <td><strong>{{ classroom.class_name }}</strong></td>
-                                    <td>{{ classroom.year }}</td>
+                                    <td><strong>{{ data.classroom.class_name }}</strong></td>
+                                    <td>{{ data.classroom.year }}</td>
                                     <td>
-                                        <span class="badge bg-{% if classroom.semester == 'first' %}primary{% else %}secondary{% endif %}">
-                                            {{ classroom.get_semester_display }}
+                                        <span class="badge bg-{% if data.classroom.semester == 'first' %}primary{% else %}secondary{% endif %}">
+                                            {{ data.classroom.get_semester_display }}
                                         </span>
                                     </td>
                                     <td>
-                                        {% for teacher in classroom.teachers.all %}
+                                        {% for teacher in data.classroom.teachers.all %}
                                             {{ teacher.full_name }}{% if not forloop.last %}, {% endif %}
                                         {% endfor %}
                                     </td>
                                     <td>
-                                        <a href="{% url 'school_management:class_detail' classroom.id %}" 
+                                        <span class="badge bg-{% if data.points >= 50 %}success{% elif data.points >= 30 %}warning{% else %}secondary{% endif %} fs-6">
+                                            {{ data.points }}pt
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'school_management:class_detail' data.classroom.id %}" 
                                            class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i>詳細
                                         </a>
