@@ -139,10 +139,75 @@ uv run python manage.py dbshell
 uv run python manage.py shell
 ```
 
+## 本番環境へのデプロイ（Railway）
+
+このアプリケーションは[Railway](https://railway.app/)にデプロイ可能です。
+
+### デプロイ済み環境
+
+- **本番URL**: https://grades-production-e365.up.railway.app/
+- **ホスティング**: Railway
+- **データベース**: PostgreSQL
+- **静的ファイル配信**: WhiteNoise
+
+### デプロイ手順
+
+詳細な手順は[DEPLOYMENT.md](DEPLOYMENT.md)を参照してください。
+
+#### 簡易手順
+
+1. **GitHubにプッシュ**
+   ```powershell
+   git add .
+   git commit -m "Update"
+   git push origin main
+   ```
+
+2. **Railwayでプロジェクト作成**
+   - https://railway.app/ にアクセス
+   - "New Project" → "Deploy from GitHub repo"
+   - リポジトリを選択
+
+3. **PostgreSQLデータベースを追加**
+   - "New" → "Database" → "Add PostgreSQL"
+
+4. **環境変数を設定**
+   ```
+   SECRET_KEY=<ランダムな50文字以上の文字列>
+   DEBUG=False
+   ALLOWED_HOSTS=*.railway.app
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=<安全なパスワード>
+   ADMIN_NAME=管理者
+   ```
+
+5. **自動デプロイ**
+   - GitHubへのプッシュで自動的にデプロイされます
+   - デプロイ時に自動的に以下が実行されます：
+     - 静的ファイルの収集
+     - データベースマイグレーション
+     - 管理者ユーザーの作成
+
+### 本番環境の管理者アカウント
+
+Railway環境変数で設定した以下の情報でログインできます：
+- **メールアドレス**: `ADMIN_EMAIL`で設定した値
+- **パスワード**: `ADMIN_PASSWORD`で設定した値
+
+### トラブルシューティング
+
+- **CSSが表示されない**: WhiteNoiseが正しく設定されているか確認
+- **ログインできない**: 環境変数（ADMIN_EMAIL、ADMIN_PASSWORD）が設定されているか確認
+- **CSRF検証エラー**: `CSRF_TRUSTED_ORIGINS`が正しく設定されているか確認
+
+詳細は[DEPLOYMENT.md](DEPLOYMENT.md)のトラブルシューティングセクションを参照してください。
+
 ## 注意事項
-- このシステムは開発用です。本番環境では適切なセキュリティ設定が必要です
-- パスワードは本番環境では強固なものに変更してください
+- 開発環境ではSQLite、本番環境ではPostgreSQLを使用します
+- パスワードは強固なものに設定してください
+- 本番環境では`DEBUG=False`を必ず設定してください
 - 定期的なデータベースバックアップを推奨します
+- SECRET_KEYは絶対に公開しないでください
 
 ## ライセンス
 このプロジェクトはMITライセンスの下で公開されています。
