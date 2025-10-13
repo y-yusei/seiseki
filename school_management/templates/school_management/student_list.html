@@ -51,10 +51,16 @@
                                     <td><span class="badge bg-success">{{ student.get_role_display }}</span></td>
                                     <td>
                                         {% if student.student_number %}
-                                        <a href="{% url 'school_management:student_detail' student.student_number %}" 
-                                           class="btn btn-outline-primary btn-sm">
-                                            <i class="fas fa-eye me-1"></i>詳細
-                                        </a>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'school_management:student_detail' student.student_number %}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye me-1"></i>詳細
+                                            </a>
+                                            <a href="{% url 'school_management:student_edit' student.student_number %}" 
+                                               class="btn btn-outline-warning btn-sm">
+                                                <i class="fas fa-edit me-1"></i>編集
+                                            </a>
+                                        </div>
                                         {% else %}
                                         <span class="text-muted">学籍番号未設定</span>
                                         {% endif %}

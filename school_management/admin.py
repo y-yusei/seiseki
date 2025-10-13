@@ -3,8 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     CustomUser, ClassRoom, LessonSession, 
     Group, GroupMember, Quiz, QuizScore, 
-    PeerEvaluation, ContributionEvaluation
+    PeerEvaluation, ContributionEvaluation,
+    StudentQRCode, QRCodeScan, StudentLessonPoints
 )
+from .models import StudentClassPoints
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
@@ -93,3 +95,43 @@ class ContributionEvaluationAdmin(admin.ModelAdmin):
     list_display = ('peer_evaluation', 'evaluatee', 'contribution_score')
     list_filter = ('contribution_score', 'peer_evaluation__lesson_session')
     search_fields = ('evaluatee__full_name',)
+
+
+@admin.register(StudentQRCode)
+class StudentQRCodeAdmin(admin.ModelAdmin):
+    """学生QRコード管理画面"""
+    list_display = ('student', 'qr_code_id', 'is_active', 'scan_count', 'created_at', 'last_used_at')
+    list_filter = ('is_active', 'created_at', 'last_used_at')
+    search_fields = ('student__full_name', 'student__student_number')
+    readonly_fields = ('qr_code_id', 'created_at', 'last_used_at')
+    
+    def scan_count(self, obj):
+        return obj.scans.count()
+    scan_count.short_description = 'スキャン数'
+
+
+@admin.register(QRCodeScan)
+class QRCodeScanAdmin(admin.ModelAdmin):
+    """QRコードスキャン履歴管理画面"""
+    list_display = ('qr_code', 'scanned_by', 'points_awarded', 'scanned_at')
+    list_filter = ('points_awarded', 'scanned_at', 'qr_code__student')
+    search_fields = ('qr_code__student__full_name', 'scanned_by__full_name')
+    readonly_fields = ('scanned_at',)
+
+
+@admin.register(StudentLessonPoints)
+class StudentLessonPointsAdmin(admin.ModelAdmin):
+    """学生授業ポイント管理画面"""
+    list_display = ('student', 'lesson_session', 'points', 'created_at', 'updated_at')
+    list_filter = ('points', 'created_at', 'lesson_session__classroom')
+    search_fields = ('student__full_name', 'lesson_session__classroom__class_name')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(StudentClassPoints)
+class StudentClassPointsAdmin(admin.ModelAdmin):
+    """クラスごとの学生ポイント管理画面"""
+    list_display = ('student', 'classroom', 'points', 'created_at', 'updated_at')
+    list_filter = ('classroom', 'points', 'created_at')
+    search_fields = ('student__full_name', 'classroom__class_name')
+    readonly_fields = ('created_at', 'updated_at')

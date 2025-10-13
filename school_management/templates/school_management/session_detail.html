@@ -50,7 +50,7 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{% url 'school_management:group_manage' session.id %}" class="btn btn-outline-primary btn-sm">
+                    <a href="{% url 'school_management:group_management' session.id %}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-users me-1"></i>グループ編成
                     </a>
                     
@@ -115,7 +115,7 @@
                     </div>
                     
                     <div class="text-center mt-3">
-                        <a href="{% url 'school_management:group_manage' session.id %}" class="btn btn-outline-primary">
+                        <a href="{% url 'school_management:group_management' session.id %}" class="btn btn-outline-primary">
                             <i class="fas fa-edit me-1"></i>グループ編成を編集
                         </a>
                     </div>
@@ -124,7 +124,7 @@
                         <i class="fas fa-users fa-3x text-muted mb-3"></i>
                         <h6 class="text-muted">グループが編成されていません</h6>
                         <p class="text-muted">学生をグループに分けて、グループワークやピア評価の準備をしましょう。</p>
-                        <a href="{% url 'school_management:group_manage' session.id %}" class="btn btn-primary">
+                        <a href="{% url 'school_management:group_management' session.id %}" class="btn btn-primary">
                             <i class="fas fa-users me-1"></i>グループ編成を開始
                         </a>
                     </div>
@@ -163,6 +163,9 @@
                                     <td>
                                         <a href="{% url 'school_management:quiz_detail' quiz.id %}" class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-eye me-1"></i>詳細
+                                        </a>
+                                        <a href="{% url 'school_management:question_manage' quiz.id %}" class="btn btn-outline-info btn-sm">
+                                            <i class="fas fa-clipboard-list me-1"></i>問題管理
                                         </a>
                                         <a href="{% url 'school_management:quiz_grading' quiz.id %}" class="btn btn-outline-success btn-sm">
                                             <i class="fas fa-qrcode me-1"></i>採点
