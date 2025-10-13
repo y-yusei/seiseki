@@ -1750,7 +1750,7 @@ def class_qr_codes(request, class_id):
         )
         scan_url = request.build_absolute_uri(
             reverse('school_management:qr_code_scan', kwargs={'qr_code_id': qr_code.qr_code_id})
-        )
+        ) + f'?class_id={class_id}'
         qr_codes.append({
             'student': student,
             'qr_code': qr_code,
@@ -1784,12 +1784,22 @@ def qr_code_detail(request, student_id):
         reverse('school_management:qr_code_scan', kwargs={'qr_code_id': qr_code.qr_code_id})
     )
     
+    # クラスIDをGETパラメータから取得
+    class_id = request.GET.get('class_id')
+    classroom = None
+    if class_id:
+        try:
+            classroom = ClassRoom.objects.get(id=class_id)
+        except ClassRoom.DoesNotExist:
+            pass
+    
     context = {
         'student': student,
         'qr_code': qr_code,
         'scans': scans,
         'qr_image': generate_qr_code_image(scan_url),
         'total_points': scans.aggregate(total=models.Sum('points_awarded'))['total'] or 0,
+        'classroom': classroom,
     }
     return render(request, 'school_management/qr_code_detail.html', context)
 
@@ -1831,6 +1841,11 @@ def qr_code_scan(request, qr_code_id):
             points_awarded=1
         )
         
+        # 学生の総合ポイントを更新
+        student = qr_code.student
+        student.points += 1
+        student.save()
+        
         # 授業ごとのポイントを更新
         if current_session:
             student_lesson_points, created = StudentLessonPoints.objects.get_or_create(
@@ -1858,6 +1873,15 @@ def qr_code_scan(request, qr_code_id):
         qr_code.last_used_at = timezone.now()
         qr_code.save()
         
+        # クラスIDをGETパラメータから取得
+        class_id = request.GET.get('class_id')
+        classroom = None
+        if class_id:
+            try:
+                classroom = ClassRoom.objects.get(id=class_id)
+            except ClassRoom.DoesNotExist:
+                pass
+        
         # スキャン成功ページを表示
         user_scan_count = QRCodeScan.objects.filter(scanned_by=request.user).count()
         context = {
@@ -1865,6 +1889,7 @@ def qr_code_scan(request, qr_code_id):
             'lesson_session': current_session,
             'scan_time': timezone.now().strftime('%Y年%m月%d日 %H:%M'),
             'user_scan_count': user_scan_count,
+            'classroom': classroom,
         }
         return render(request, 'school_management/qr_code_scan.html', context)
         
