@@ -34,6 +34,12 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 # Allow all hosts in DEBUG to simplify dev access (e.g., port-forwarded domains)
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
+# Railway.app specific: automatically allow Railway domains
+if 'RAILWAY_ENVIRONMENT' in os.environ:
+    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    if railway_domain and railway_domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(railway_domain)
+
 
 # Application definition
 
