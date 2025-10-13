@@ -144,14 +144,19 @@ def student_dashboard(request):
         student=request.user
     ).select_related('lesson_session').order_by('-lesson_session__date')
     
-    # 総ポイントを計算
-    total_points = lesson_points.aggregate(total=models.Sum('points'))['total'] or 0
-    
-    # 累計ポイントを計算して各ポイントレコードに追加
-    cumulative_points = 0
-    for point in lesson_points:
-        cumulative_points += point.points
-        point.cumulative_points = cumulative_points
+    # クラスごとのポイントを取得
+    class_points_list = []
+    for classroom in student_classrooms:
+        try:
+            class_points_obj = StudentClassPoints.objects.get(student=request.user, classroom=classroom)
+            class_points = class_points_obj.points
+        except StudentClassPoints.DoesNotExist:
+            class_points = 0
+        
+        class_points_list.append({
+            'classroom': classroom,
+            'points': class_points
+        })
     
     context = {
         'student_classrooms': student_classrooms,
@@ -159,7 +164,7 @@ def student_dashboard(request):
         'pending_evaluations': pending_evaluations,
         'total_classes': student_classrooms.count(),
         'lesson_points': lesson_points,
-        'total_points': total_points,
+        'class_points_list': class_points_list,
     }
     return render(request, 'school_management/student_dashboard.html', context)
 
@@ -312,12 +317,25 @@ def student_detail_view(request, student_number):
     """学生詳細"""
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
     
-    # 所属クラス一覧
+    # 所属クラス一覧とそれぞれのクラスポイントを取得
     classes = student.classroom_set.all()
+    class_data = []
+    for classroom in classes:
+        try:
+            class_points_obj = StudentClassPoints.objects.get(student=student, classroom=classroom)
+            class_points = class_points_obj.points
+        except StudentClassPoints.DoesNotExist:
+            class_points = 0
+        
+        class_data.append({
+            'classroom': classroom,
+            'points': class_points
+        })
     
     context = {
         'student': student,
         'classes': classes,
+        'class_data': class_data,
     }
     return render(request, 'school_management/student_detail.html', context)
 
@@ -403,9 +421,8 @@ def student_edit_view(request, student_number):
                 student.furigana = furigana
                 student.email = email or ''
                 
-                # ポイントの更新（数値の場合のみ）
-                if points and points.isdigit():
-                    student.points = int(points)
+                # ポイントはクラス単位で管理するため、ここでは更新しない
+                # クラス詳細画面から各クラスのポイントを個別に更新する
                 
                 student.save()
                 messages.success(request, f'{student.full_name}さんの情報を更新しました。')
@@ -1037,6 +1054,12 @@ def bulk_student_add(request, class_id):
                     student = CustomUser.objects.get(id=student_id, role='student')
                     if not classroom.students.filter(id=student.id).exists():
                         classroom.students.add(student)
+                        # クラスポイントを0で初期化
+                        StudentClassPoints.objects.get_or_create(
+                            student=student,
+                            classroom=classroom,
+                            defaults={'points': 0}
+                        )
                         added_count += 1
                 except CustomUser.DoesNotExist:
                     continue
@@ -1127,6 +1150,12 @@ def bulk_student_add_csv(request, class_id):
                 )
                 # クラスに学生を追加
                 classroom.students.add(student)
+                # クラスポイントを0で初期化
+                StudentClassPoints.objects.get_or_create(
+                    student=student,
+                    classroom=classroom,
+                    defaults={'points': 0}
+                )
                 added_count += 1
                 
             except Exception as e:
@@ -1628,11 +1657,11 @@ def peer_evaluation_results(request, session_id):
 @csrf_exempt
 @require_POST
 def update_student_points(request, student_id):
-    """学生のポイントを更新する
+    """学生のポイントを更新する（クラス独立型）
 
-    JSON ボディで { "points": <数値>, "class_id": <クラスID optional> } を受け取る。
-    class_id が渡された場合はクラス単位の `StudentClassPoints` を更新し、
-    なければ従来通り `CustomUser.points` を更新する。
+    JSON ボディで { "points": <数値>, "class_id": <クラスID> } を受け取る。
+    class_id は必須で、クラス単位の `StudentClassPoints` のみを更新する。
+    総合ポイント（CustomUser.points）は使用しない。
     """
     if request.method == 'POST' and request.headers.get('content-type') == 'application/json':
         try:
@@ -1643,18 +1672,17 @@ def update_student_points(request, student_id):
             student = get_object_or_404(CustomUser, id=student_id, role='student')
             class_id = data.get('class_id')
 
-            if class_id:
-                classroom = get_object_or_404(ClassRoom, id=class_id)
-                scp, created = StudentClassPoints.objects.get_or_create(
-                    student=student,
-                    classroom=classroom,
-                    defaults={'points': 0}
-                )
-                scp.points = int(points)
-                scp.save()
-            else:
-                student.points = int(points)
-                student.save()
+            if not class_id:
+                return JsonResponse({'success': False, 'error': 'class_idが必須です'})
+
+            classroom = get_object_or_404(ClassRoom, id=class_id)
+            scp, created = StudentClassPoints.objects.get_or_create(
+                student=student,
+                classroom=classroom,
+                defaults={'points': 0}
+            )
+            scp.points = int(points)
+            scp.save()
 
             return JsonResponse({'success': True, 'message': 'ポイントが更新されました'})
         except Exception as e:
@@ -1751,11 +1779,20 @@ def class_qr_codes(request, class_id):
         scan_url = request.build_absolute_uri(
             reverse('school_management:qr_code_scan', kwargs={'qr_code_id': qr_code.qr_code_id})
         ) + f'?class_id={class_id}'
+        
+        # このクラスでのポイントを取得
+        try:
+            class_points_obj = StudentClassPoints.objects.get(student=student, classroom=classroom)
+            class_points = class_points_obj.points
+        except StudentClassPoints.DoesNotExist:
+            class_points = 0
+        
         qr_codes.append({
             'student': student,
             'qr_code': qr_code,
             'scan_count': qr_code.scans.count(),
-            'qr_image': generate_qr_code_image(scan_url)
+            'qr_image': generate_qr_code_image(scan_url),
+            'class_points': class_points  # クラスごとのポイントを追加
         })
     
     context = {
@@ -1819,16 +1856,33 @@ def qr_code_scan(request, qr_code_id):
             messages.error(request, 'QRコードのスキャンは先生のみ可能です。')
             return redirect('school_management:student_dashboard')
         
+        # クラスIDをGETパラメータから取得
+        class_id = request.GET.get('class_id')
+        target_classroom = None
+        if class_id:
+            try:
+                target_classroom = ClassRoom.objects.get(id=class_id, teachers=request.user)
+            except ClassRoom.DoesNotExist:
+                pass
+        
         # 現在の授業セッションを取得（先生が担当する授業の中で今日の日付のもの）
         from datetime import date
         today = date.today()
         current_session = None
         
         # 先生が担当する授業セッションを取得
-        teacher_sessions = LessonSession.objects.filter(
-            classroom__teachers=request.user,
-            date=today
-        ).order_by('-created_at')
+        if target_classroom:
+            # 指定されたクラスの今日の授業セッション
+            teacher_sessions = LessonSession.objects.filter(
+                classroom=target_classroom,
+                date=today
+            ).order_by('-created_at')
+        else:
+            # すべての担当クラスから今日の授業セッション
+            teacher_sessions = LessonSession.objects.filter(
+                classroom__teachers=request.user,
+                date=today
+            ).order_by('-created_at')
         
         if teacher_sessions.exists():
             current_session = teacher_sessions.first()
@@ -1841,55 +1895,59 @@ def qr_code_scan(request, qr_code_id):
             points_awarded=1
         )
         
-        # 学生の総合ポイントを更新
-        student = qr_code.student
-        student.points += 1
-        student.save()
+        # ポイントを更新（授業セッションがなくてもクラスが指定されていればポイント付与）
+        update_classroom = current_session.classroom if current_session else target_classroom
         
-        # 授業ごとのポイントを更新
-        if current_session:
-            student_lesson_points, created = StudentLessonPoints.objects.get_or_create(
-                student=qr_code.student,
-                lesson_session=current_session,
-                defaults={'points': 0}
-            )
-            student_lesson_points.points += 1
-            student_lesson_points.save()
+        if update_classroom:
+            # 授業セッションごとのポイント（セッションがある場合のみ）
+            if current_session:
+                student_lesson_points, created = StudentLessonPoints.objects.get_or_create(
+                    student=qr_code.student,
+                    lesson_session=current_session,
+                    defaults={'points': 0}
+                )
+                student_lesson_points.points += 1
+                student_lesson_points.save()
 
-            # 当該クラスの累計ポイントも更新（なければ作成）
+            # クラス累計ポイントを更新（必ず更新）
             try:
                 scp, scp_created = StudentClassPoints.objects.get_or_create(
                     student=qr_code.student,
-                    classroom=current_session.classroom,
+                    classroom=update_classroom,
                     defaults={'points': 0}
                 )
                 scp.points += 1
                 scp.save()
-            except Exception:
-                # クラスポイント更新失敗は致命的でないため無視
-                pass
+            except Exception as e:
+                # クラスポイント更新失敗をログに記録
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f'クラスポイント更新エラー: {str(e)}')
         
         # QRコードの最終使用日時を更新
         qr_code.last_used_at = timezone.now()
         qr_code.save()
         
-        # クラスIDをGETパラメータから取得
-        class_id = request.GET.get('class_id')
-        classroom = None
-        if class_id:
-            try:
-                classroom = ClassRoom.objects.get(id=class_id)
-            except ClassRoom.DoesNotExist:
-                pass
-        
         # スキャン成功ページを表示
         user_scan_count = QRCodeScan.objects.filter(scanned_by=request.user).count()
+        
+        # 学生のクラスポイントを取得（表示用）
+        student_class_points = None
+        if update_classroom:
+            try:
+                scp = StudentClassPoints.objects.get(student=qr_code.student, classroom=update_classroom)
+                student_class_points = scp.points
+            except StudentClassPoints.DoesNotExist:
+                student_class_points = 0
+        
         context = {
             'qr_code': qr_code,
             'lesson_session': current_session,
             'scan_time': timezone.now().strftime('%Y年%m月%d日 %H:%M'),
             'user_scan_count': user_scan_count,
-            'classroom': classroom,
+            'classroom': update_classroom,
+            'student_class_points': student_class_points,
+            'points_added': True if update_classroom else False,
         }
         return render(request, 'school_management/qr_code_scan.html', context)
         

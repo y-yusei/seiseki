@@ -18,24 +18,37 @@
                             <i class="fas fa-check-circle fa-2x mb-3"></i>
                             <h4>🎉 スキャン成功！</h4>
                             <p class="mb-2">{{ qr_code.student.full_name }}さんのQRコードをスキャンしました。</p>
-                            {% if lesson_session %}
+                            {% if classroom %}
                                 <p class="mb-2">
                                     <strong class="text-primary">
-                                        <i class="fas fa-chalkboard-teacher me-1"></i>
-                                        授業: {{ lesson_session.lesson.title }} ({{ lesson_session.session_date }})
+                                        <i class="fas fa-chalkboard me-1"></i>
+                                        クラス: {{ classroom.class_name }}
                                     </strong>
                                 </p>
                             {% endif %}
-                            <p class="mb-0">
-                                <strong class="text-success">
-                                    <i class="fas fa-star me-1"></i>
-                                    {{ qr_code.student.full_name }}さんの授業ポイントが <span class="badge bg-success fs-6">+1</span> 増加しました！
-                                </strong>
-                            </p>
+                            {% if points_added %}
+                                <p class="mb-2">
+                                    <strong class="text-success">
+                                        <i class="fas fa-star me-1"></i>
+                                        {{ qr_code.student.full_name }}さんのクラスポイントが <span class="badge bg-success fs-6">+1</span> 増加しました！
+                                    </strong>
+                                </p>
+                                {% if student_class_points is not None %}
+                                    <p class="mb-0">
+                                        <strong>現在のクラスポイント:</strong> 
+                                        <span class="badge bg-primary fs-6">{{ student_class_points }}pt</span>
+                                    </p>
+                                {% endif %}
+                            {% else %}
+                                <div class="alert alert-warning mt-2">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    クラスが指定されていないため、ポイントは付与されませんでした。
+                                </div>
+                            {% endif %}
                             <p class="mt-2 mb-0">
                                 <small class="text-muted">
                                     <i class="fas fa-user-tie me-1"></i>
-                                    先生として授業ポイントを付与しました
+                                    先生としてポイントを付与しました
                                 </small>
                             </p>
                         </div>
@@ -47,11 +60,15 @@
                                         <h5 class="card-title">スキャン情報</h5>
                                         <p class="mb-1"><strong>QRコード所有者:</strong> {{ qr_code.student.full_name }}</p>
                                         <p class="mb-1"><strong>学籍番号:</strong> {{ qr_code.student.student_number }}</p>
+                                        {% if classroom %}
+                                            <p class="mb-1"><strong>クラス:</strong> {{ classroom.class_name }}</p>
+                                        {% endif %}
                                         <p class="mb-1">
                                             <strong>付与ポイント:</strong> 
-                                            <span class="badge bg-success fs-6">+1点</span>
-                                            {% if lesson_session %}
-                                                <small class="text-muted">({{ lesson_session.lesson.title }})</small>
+                                            {% if points_added %}
+                                                <span class="badge bg-success fs-6">+1点</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary fs-6">0点</span>
                                             {% endif %}
                                         </p>
                                         <p class="mb-0"><strong>スキャン日時:</strong> {{ scan_time }}</p>
