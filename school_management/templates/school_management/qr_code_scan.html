@@ -72,12 +72,23 @@
                         </div>
                         
                         <div class="mt-4">
-                            <a href="{% url 'school_management:qr_code_list' %}" class="btn btn-primary me-2">
-                                <i class="fas fa-home me-1"></i>QRコード一覧に戻る
-                            </a>
-                            <a href="{% url 'school_management:class_qr_codes' qr_code.student.classroom_set.first.id %}" class="btn btn-outline-primary">
-                                <i class="fas fa-chalkboard me-1"></i>クラスQRコード
-                            </a>
+                            {% if classroom %}
+                                <a href="{% url 'school_management:class_detail' classroom.id %}" class="btn btn-primary me-2">
+                                    <i class="fas fa-arrow-left me-1"></i>{{ classroom.class_name }}の詳細に戻る
+                                </a>
+                                <a href="{% url 'school_management:class_qr_codes' classroom.id %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-qrcode me-1"></i>クラスQRコード一覧
+                                </a>
+                            {% else %}
+                                <a href="{% url 'school_management:qr_code_list' %}" class="btn btn-primary me-2">
+                                    <i class="fas fa-home me-1"></i>QRコード一覧に戻る
+                                </a>
+                                {% if qr_code.student.classroom_set.first %}
+                                    <a href="{% url 'school_management:class_qr_codes' qr_code.student.classroom_set.first.id %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-chalkboard me-1"></i>クラスQRコード
+                                    </a>
+                                {% endif %}
+                            {% endif %}
                         </div>
                     {% else %}
                         <div class="alert alert-danger">

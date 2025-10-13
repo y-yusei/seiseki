@@ -396,7 +396,7 @@ class QRCodeScan(models.Model):
     class Meta:
         verbose_name = 'QRコードスキャン'
         verbose_name_plural = 'QRコードスキャン'
-        unique_together = ['qr_code', 'scanned_by']  # 同じQRコードを同じ人が複数回スキャンできないようにする
+        # unique_together制約を削除 - 何度でもスキャン可能にする
     
     def __str__(self):
         return f"{self.qr_code.student.full_name}のQRコードを{self.scanned_by.full_name}がスキャン"
