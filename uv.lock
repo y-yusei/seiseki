@@ -138,7 +138,7 @@ pil = [
 [[package]]
 name = "school-system"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "django" },
     { name = "qrcode", extra = ["pil"] },

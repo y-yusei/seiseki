@@ -288,15 +288,15 @@ def session_detail_view(request, session_id):
 
 # 学生管理ビュー
 @login_required
-@login_required
 def student_list_view(request):
-    """学生一覧"""
-    # 役割が学生で、student_numberが設定されているユーザーのみ表示
+    """学生一覧（担当クラスの学生のみ）"""
+    # 担当クラスの学生のみを表示
     students = Student.objects.filter(
         role='student',
         student_number__isnull=False,
-        student_number__gt=''
-    ).order_by('student_number')
+        student_number__gt='',
+        classroom__teachers=request.user
+    ).distinct().order_by('student_number')
     
     # 検索機能を追加
     search_query = request.GET.get('search', '')
@@ -317,8 +317,14 @@ def student_detail_view(request, student_number):
     """学生詳細"""
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
     
-    # 所属クラス一覧とそれぞれのクラスポイントを取得
-    classes = student.classroom_set.all()
+    # 所属クラス一覧とそれぞれのクラスポイントを取得（担当クラスのみ）
+    classes = student.classroom_set.filter(teachers=request.user)
+    
+    # 担当クラスに所属していない場合はアクセス拒否
+    if not classes.exists():
+        messages.error(request, 'この学生の詳細を表示する権限がありません。')
+        return redirect('school_management:student_list')
+    
     class_data = []
     for classroom in classes:
         try:
@@ -342,7 +348,8 @@ def student_detail_view(request, student_number):
 @login_required
 def class_student_detail_view(request, class_id, student_number):
     """クラス内の学生詳細"""
-    classroom = get_object_or_404(ClassRoom, id=class_id)
+    # 担当教師のチェックを追加
+    classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
     
     # 学生がこのクラスに所属しているかチェック
@@ -402,6 +409,13 @@ def class_student_detail_view(request, class_id, student_number):
 def student_edit_view(request, student_number):
     """学生編集"""
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
+    
+    # 担当クラスに所属しているかチェック
+    student_classes = student.classroom_set.filter(teachers=request.user)
+    if not student_classes.exists():
+        messages.error(request, 'この学生の情報を編集する権限がありません。')
+        return redirect('school_management:student_list')
+    
     csrf_token = get_token(request)
     
     if request.method == 'POST':
@@ -1675,7 +1689,9 @@ def update_student_points(request, student_id):
             if not class_id:
                 return JsonResponse({'success': False, 'error': 'class_idが必須です'})
 
-            classroom = get_object_or_404(ClassRoom, id=class_id)
+            # 担当教師のチェックを追加
+            classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
+            
             scp, created = StudentClassPoints.objects.get_or_create(
                 student=student,
                 classroom=classroom,
@@ -1704,7 +1720,8 @@ def remove_student_from_class(request, student_id):
             class_id = data.get('class_id')
             
             student = get_object_or_404(CustomUser, id=student_id, role='student')
-            classroom = get_object_or_404(ClassRoom, id=class_id)
+            # 担当教師のチェックを追加
+            classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
             
             # 学生をクラスから削除
             classroom.students.remove(student)
@@ -1810,6 +1827,13 @@ def qr_code_detail(request, student_id):
         return redirect('school_management:dashboard')
     
     student = get_object_or_404(Student, id=student_id)
+    
+    # 担当クラスに所属しているかチェック
+    student_classes = student.classroom_set.filter(teachers=request.user)
+    if not student_classes.exists():
+        messages.error(request, 'この学生のQRコードを表示する権限がありません。')
+        return redirect('school_management:dashboard')
+    
     qr_code, created = StudentQRCode.objects.get_or_create(
         student=student,
         defaults={'is_active': True}
