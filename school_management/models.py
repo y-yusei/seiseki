@@ -8,10 +8,11 @@ import uuid
 class CustomUserManager(BaseUserManager):
     """カスタムユーザーマネージャー"""
     def create_user(self, email, full_name, password=None, **extra_fields):
-        if not email:
-            raise ValueError('メールアドレスは必須です')
+        if email:
+            email = self.normalize_email(email)
+        else:
+            email = None
         
-        email = self.normalize_email(email)
         user = self.model(email=email, full_name=full_name, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -39,7 +40,7 @@ class CustomUser(AbstractUser):
     ]
     
     username = None  # usernameフィールドを無効化
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
     full_name = models.CharField(max_length=100, verbose_name='氏名')
     furigana = models.CharField(max_length=100, blank=True, verbose_name='ふりがな')
     points = models.IntegerField(default=0, verbose_name='ポイント')
