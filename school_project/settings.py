@@ -31,21 +31,36 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-rsvn^mbs%1g$gbd3t^wk7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-# Allow all hosts in DEBUG to simplify dev access (e.g., port-forwarded domains)
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if not DEBUG else ['*']
+# ALLOWED_HOSTS configuration
+if DEBUG:
+    # Allow all hosts in DEBUG to simplify dev access (e.g., port-forwarded domains)
+    ALLOWED_HOSTS = ['*']
+else:
+    # Production: start with common localhost values
+    ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
 
-# Railway.app specific: automatically allow Railway domains
-if 'RAILWAY_ENVIRONMENT' in os.environ:
-    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
-    if railway_domain and railway_domain not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(railway_domain)
+    # Railway.app specific: automatically allow Railway domains
+    if 'RAILWAY_ENVIRONMENT' in os.environ:
+        railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+        if railway_domain and railway_domain not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(railway_domain)
+        # Also add the railway.app wildcard pattern
+        railway_static_url = os.environ.get('RAILWAY_STATIC_URL')
+        if railway_static_url:
+            ALLOWED_HOSTS.append(railway_static_url)
 
 # CSRF trusted origins for Railway
 CSRF_TRUSTED_ORIGINS = []
 if 'RAILWAY_ENVIRONMENT' in os.environ:
     railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
     if railway_domain:
+        # Add both http and https versions
         CSRF_TRUSTED_ORIGINS.append(f'https://{railway_domain}')
+        CSRF_TRUSTED_ORIGINS.append(f'http://{railway_domain}')
+
+    railway_static_url = os.environ.get('RAILWAY_STATIC_URL')
+    if railway_static_url:
+        CSRF_TRUSTED_ORIGINS.append(f'https://{railway_static_url}')
 else:
     # Allow local development
     CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
