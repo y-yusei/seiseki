@@ -11,6 +11,9 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('student-dashboard/', views.student_dashboard, name='student_dashboard'),
     
+    # 管理者用ページ
+    path('admin-panel/teachers/', views.admin_teacher_management, name='admin_teacher_management'),
+    
     # クラス管理
     path('classes/', views.class_list_view, name='class_list'),
     path('classes/<int:class_id>/', views.class_detail_view, name='class_detail'),
