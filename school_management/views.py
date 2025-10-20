@@ -545,21 +545,15 @@ def student_create_view(request):
                 
                 # カンマで分割
                 parts = [part.strip() for part in line.split(',')]
-                if len(parts) < 4:
-                    errors.append(f'行{line_num}: 必要な項目が不足しています（学籍番号,氏名,ふりがな,メールアドレス） - {line}')
+                if len(parts) < 3:
+                    errors.append(f'行{line_num}: 必要な項目が不足しています（学籍番号,氏名,ふりがな） - {line}')
                     error_count += 1
                     continue
                 
                 student_number = parts[0]
                 full_name = parts[1]
                 furigana = parts[2]
-                email = parts[3]
-                
-                # メールアドレスの必須チェック
-                if not email or email.strip() == '':
-                    errors.append(f'行{line_num}: メールアドレスは必須項目です')
-                    error_count += 1
-                    continue
+                email = parts[3] if len(parts) > 3 and parts[3].strip() else None
                 
                 try:
                     # 重複チェック
@@ -568,7 +562,8 @@ def student_create_view(request):
                         error_count += 1
                         continue
                     
-                    if Student.objects.filter(email=email).exists():
+                    # メールアドレスの重複チェック（null値は除外）
+                    if email and Student.objects.filter(email=email).exists():
                         errors.append(f'行{line_num}: メールアドレス "{email}" は既に登録されています')
                         error_count += 1
                         continue
@@ -622,10 +617,8 @@ def student_create_view(request):
             email = request.POST.get('email')
             
             if student_number and full_name and furigana:
-                # メールアドレスの必須チェック
-                if not email or email.strip() == '':
-                    messages.error(request, 'メールアドレスは必須項目です。')
-                    return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
+                # メールアドレスを空文字列の場合はNoneに変換
+                email = email.strip() if email and email.strip() else None
                 
                 try:
                     # 学籍番号の重複チェック
@@ -633,8 +626,8 @@ def student_create_view(request):
                         messages.error(request, f'学籍番号 "{student_number}" は既に登録されています。別の学籍番号を入力してください。')
                         return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
                     
-                    # メールアドレスの重複チェック
-                    if Student.objects.filter(email=email).exists():
+                    # メールアドレスの重複チェック（null値は除外）
+                    if email and Student.objects.filter(email=email).exists():
                         messages.error(request, f'メールアドレス "{email}" は既に登録されています。別のメールアドレスを入力してください。')
                         return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
                     
@@ -1254,7 +1247,7 @@ def bulk_student_add_csv(request, class_id):
             
             student_number = parts[0].strip()
             full_name = parts[1].strip()
-            email = parts[2].strip() if len(parts) > 2 else f'{student_number}@example.com'
+            email = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
             
             try:
                 # 重複チェック（学籍番号またはメールアドレス）
@@ -1263,7 +1256,8 @@ def bulk_student_add_csv(request, class_id):
                     error_count += 1
                     continue
                     
-                if Student.objects.filter(email=email).exists():
+                # メールアドレスの重複チェック（null値は除外）
+                if email and Student.objects.filter(email=email).exists():
                     errors.append(f'行{line_num}: メールアドレスが既に存在します - {email}')
                     error_count += 1
                     continue
