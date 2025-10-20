@@ -7,7 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.middleware.csrf import get_token
 from django.db.models import Avg, Count, Q, Max
-from django.db import models
+from django.db import models, IntegrityError
 from django.utils import timezone
 import qrcode
 import io
@@ -289,14 +289,13 @@ def session_detail_view(request, session_id):
 # 学生管理ビュー
 @login_required
 def student_list_view(request):
-    """学生一覧（担当クラスの学生のみ）"""
-    # 担当クラスの学生のみを表示
+    """学生一覧（すべての学生）"""
+    # すべての学生を表示
     students = Student.objects.filter(
         role='student',
         student_number__isnull=False,
-        student_number__gt='',
-        classroom__teachers=request.user
-    ).distinct().order_by('student_number')
+        student_number__gt=''
+    ).order_by('student_number')
     
     # 検索機能を追加
     search_query = request.GET.get('search', '')
@@ -320,10 +319,9 @@ def student_detail_view(request, student_number):
     # 所属クラス一覧とそれぞれのクラスポイントを取得（担当クラスのみ）
     classes = student.classroom_set.filter(teachers=request.user)
     
-    # 担当クラスに所属していない場合はアクセス拒否
+    # 担当クラスに所属していない場合は、すべてのクラスを表示（アクセス制御を緩和）
     if not classes.exists():
-        messages.error(request, 'この学生の詳細を表示する権限がありません。')
-        return redirect('school_management:student_list')
+        classes = student.classroom_set.all()
     
     class_data = []
     for classroom in classes:
@@ -410,11 +408,8 @@ def student_edit_view(request, student_number):
     """学生編集"""
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
     
-    # 担当クラスに所属しているかチェック
-    student_classes = student.classroom_set.filter(teachers=request.user)
-    if not student_classes.exists():
-        messages.error(request, 'この学生の情報を編集する権限がありません。')
-        return redirect('school_management:student_list')
+    # アクセス制御を緩和（すべての学生を編集可能に）
+    # 必要に応じて、管理者権限チェックを追加することも可能
     
     csrf_token = get_token(request)
     
@@ -483,36 +478,58 @@ def student_create_view(request):
                 
                 # カンマで分割
                 parts = [part.strip() for part in line.split(',')]
-                if len(parts) < 3:
-                    errors.append(f'行{line_num}: 必要な項目が不足しています - {line}')
+                if len(parts) < 4:
+                    errors.append(f'行{line_num}: 必要な項目が不足しています（学籍番号,氏名,ふりがな,メールアドレス） - {line}')
                     error_count += 1
                     continue
                 
                 student_number = parts[0]
                 full_name = parts[1]
                 furigana = parts[2]
-                email = parts[3] if len(parts) > 3 else ''
+                email = parts[3]
+                
+                # メールアドレスの必須チェック
+                if not email or email.strip() == '':
+                    errors.append(f'行{line_num}: メールアドレスは必須項目です')
+                    error_count += 1
+                    continue
                 
                 try:
                     # 重複チェック
                     if Student.objects.filter(student_number=student_number).exists():
-                        errors.append(f'行{line_num}: 学生番号が既に存在します - {student_number}')
+                        errors.append(f'行{line_num}: 学籍番号 "{student_number}" は既に登録されています')
                         error_count += 1
                         continue
                     
-                    if email and Student.objects.filter(email=email).exists():
-                        errors.append(f'行{line_num}: メールアドレスが既に存在します - {email}')
+                    if Student.objects.filter(email=email).exists():
+                        errors.append(f'行{line_num}: メールアドレス "{email}" は既に登録されています')
                         error_count += 1
                         continue
                     
                     # 学生作成
-                    Student.objects.create(
-                        student_number=student_number,
+                    # デフォルトパスワードを生成（学籍番号をベースに）
+                    default_password = f"student_{student_number}"
+                    
+                    Student.objects.create_user(
+                        email=email,
                         full_name=full_name,
+                        password=default_password,
+                        student_number=student_number,
                         furigana=furigana,
-                        email=email or ''
+                        role='student'
                     )
                     added_count += 1
+                    
+                except IntegrityError as e:
+                    # データベース制約違反の場合
+                    error_message = str(e).lower()
+                    if 'student_number' in error_message or 'unique constraint' in error_message:
+                        errors.append(f'行{line_num}: 学籍番号 "{student_number}" は既に登録されています')
+                    elif 'email' in error_message:
+                        errors.append(f'行{line_num}: メールアドレス "{email}" は既に登録されています')
+                    else:
+                        errors.append(f'行{line_num}: データの重複により登録できませんでした')
+                    error_count += 1
                     
                 except Exception as e:
                     errors.append(f'行{line_num}: 作成エラー - {str(e)}')
@@ -538,21 +555,51 @@ def student_create_view(request):
             email = request.POST.get('email')
             
             if student_number and full_name and furigana:
-                # 学籍番号の重複チェック
-                if Student.objects.filter(student_number=student_number).exists():
-                    messages.error(request, f'学籍番号 "{student_number}" は既に登録されています。別の学籍番号を入力してください。')
-                else:
-                    try:
-                        Student.objects.create(
-                            student_number=student_number,
-                            full_name=full_name,
-                            furigana=furigana,
-                            email=email or ''
-                        )
-                        messages.success(request, '学生を追加しました。')
-                        return redirect('school_management:student_list')
-                    except Exception as e:
-                        messages.error(request, f'学生の追加中にエラーが発生しました: {str(e)}')
+                # メールアドレスの必須チェック
+                if not email or email.strip() == '':
+                    messages.error(request, 'メールアドレスは必須項目です。')
+                    return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
+                
+                try:
+                    # 学籍番号の重複チェック
+                    if Student.objects.filter(student_number=student_number).exists():
+                        messages.error(request, f'学籍番号 "{student_number}" は既に登録されています。別の学籍番号を入力してください。')
+                        return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
+                    
+                    # メールアドレスの重複チェック
+                    if Student.objects.filter(email=email).exists():
+                        messages.error(request, f'メールアドレス "{email}" は既に登録されています。別のメールアドレスを入力してください。')
+                        return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
+                    
+                    # 学生作成
+                    # デフォルトパスワードを生成（学籍番号をベースに）
+                    default_password = f"student_{student_number}"
+                    
+                    Student.objects.create_user(
+                        email=email,
+                        full_name=full_name,
+                        password=default_password,
+                        student_number=student_number,
+                        furigana=furigana,
+                        role='student'
+                    )
+                    messages.success(request, f'{full_name}さん（学籍番号: {student_number}）を追加しました。')
+                    return redirect('school_management:student_list')
+                    
+                except IntegrityError as e:
+                    # データベース制約違反の場合
+                    error_message = str(e).lower()
+                    if 'student_number' in error_message or 'unique constraint' in error_message:
+                        messages.error(request, f'学籍番号 "{student_number}" は既に登録されています。別の学籍番号を入力してください。')
+                    elif 'email' in error_message:
+                        messages.error(request, f'メールアドレス "{email}" は既に登録されています。別のメールアドレスを入力してください。')
+                    else:
+                        messages.error(request, 'データの重複により登録できませんでした。入力内容を確認してください。')
+                    return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
+                    
+                except Exception as e:
+                    messages.error(request, f'学生の追加中にエラーが発生しました: {str(e)}')
+                    return render(request, 'school_management/student_create.html', {'csrf_token': csrf_token})
             else:
                 messages.error(request, '必須項目を入力してください。')
     
