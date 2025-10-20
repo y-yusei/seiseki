@@ -19,9 +19,12 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Django
 *.log
@@ -29,18 +32,26 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 /media
+/staticfiles
 /static
+*.pot
 
 # Virtual Environment
 venv/
 env/
 ENV/
 .venv
+.uv/
+
+# uv (package manager)
+.python-version
+uv.lock
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+*.env
 
 # IDE
 .vscode/
@@ -48,7 +59,27 @@ ENV/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Backup files
+*.bak
+*.tmp
+*~
