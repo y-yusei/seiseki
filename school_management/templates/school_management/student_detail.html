@@ -15,6 +15,13 @@
                         <a href="{% url 'school_management:student_edit' student.student_number %}" class="btn btn-outline-warning btn-sm">
                             <i class="fas fa-edit me-1"></i>編集
                         </a>
+                        <form method="post" style="display: inline;" onsubmit="return confirm('{{ student.full_name }}さんを削除してもよろしいですか？この操作は取り消せません。関連するすべてのデータも削除されます。');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_student">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-trash me-1"></i>削除
+                            </button>
+                        </form>
                         <a href="{% url 'school_management:student_list' %}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-arrow-left me-1"></i>戻る
                         </a>

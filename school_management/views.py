@@ -247,8 +247,19 @@ def class_detail_view(request, class_id):
     """クラス詳細"""
     classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
     students = classroom.students.all()
-    lessons = LessonSession.objects.filter(classroom=classroom).order_by('-date')[:5]  # 最近の5件
-    sessions = LessonSession.objects.filter(classroom=classroom)  # 全ての授業回（カウント用）
+    
+    # すべての授業回を取得
+    all_sessions = LessonSession.objects.filter(classroom=classroom).order_by('-date')
+    
+    # show_allパラメータで全件表示するかどうかを判断
+    show_all = request.GET.get('show_all', 'false') == 'true'
+    
+    if show_all:
+        lessons = all_sessions  # すべて表示
+    else:
+        lessons = all_sessions[:5]  # 上位5件のみ
+    
+    sessions = all_sessions  # 授業回数表示用
     peer_evaluations = PeerEvaluation.objects.filter(lesson_session__classroom=classroom)
     # テンプレート側で複雑なクエリ呼び出しを避けるため、各 student に class_point を付与
     student_class_points = StudentClassPoints.objects.filter(classroom=classroom, student__in=students)
@@ -264,6 +275,8 @@ def class_detail_view(request, class_id):
         'sessions': sessions,  # 授業回数表示用
         'peer_evaluations': peer_evaluations,
         'recent_lessons': lessons,
+        'show_all': show_all,
+        'total_sessions': all_sessions.count(),
     }
     return render(request, 'school_management/class_detail.html', context)
 
@@ -357,6 +370,23 @@ def session_detail_view(request, session_id):
 @login_required
 def student_list_view(request):
     """学生一覧（すべての学生）"""
+    # 削除処理
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'delete_student':
+            student_number = request.POST.get('student_number')
+            if student_number:
+                try:
+                    student = Student.objects.get(student_number=student_number, role='student')
+                    student_name = student.full_name
+                    student.delete()
+                    messages.success(request, f'{student_name}さんを削除しました。')
+                    return redirect('school_management:student_list')
+                except Student.DoesNotExist:
+                    messages.error(request, '学生が見つかりません。')
+                except Exception as e:
+                    messages.error(request, f'削除中にエラーが発生しました: {str(e)}')
+    
     # すべての学生を表示
     students = Student.objects.filter(
         role='student',
@@ -382,6 +412,19 @@ def student_list_view(request):
 def student_detail_view(request, student_number):
     """学生詳細"""
     student = get_object_or_404(CustomUser, student_number=student_number, role='student')
+    
+    # 削除処理
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'delete_student':
+            try:
+                student_name = student.full_name
+                student.delete()
+                messages.success(request, f'{student_name}さんを削除しました。')
+                return redirect('school_management:student_list')
+            except Exception as e:
+                messages.error(request, f'削除中にエラーが発生しました: {str(e)}')
+                return redirect('school_management:student_detail', student_number=student_number)
     
     # 所属クラス一覧とそれぞれのクラスポイントを取得（担当クラスのみ）
     classes = student.classroom_set.filter(teachers=request.user)
