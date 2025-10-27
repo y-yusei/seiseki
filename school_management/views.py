@@ -247,8 +247,19 @@ def class_detail_view(request, class_id):
     """クラス詳細"""
     classroom = get_object_or_404(ClassRoom, id=class_id, teachers=request.user)
     students = classroom.students.all()
-    lessons = LessonSession.objects.filter(classroom=classroom).order_by('-date')[:5]  # 最近の5件
-    sessions = LessonSession.objects.filter(classroom=classroom)  # 全ての授業回（カウント用）
+    
+    # すべての授業回を取得
+    all_sessions = LessonSession.objects.filter(classroom=classroom).order_by('-date')
+    
+    # show_allパラメータで全件表示するかどうかを判断
+    show_all = request.GET.get('show_all', 'false') == 'true'
+    
+    if show_all:
+        lessons = all_sessions  # すべて表示
+    else:
+        lessons = all_sessions[:5]  # 上位5件のみ
+    
+    sessions = all_sessions  # 授業回数表示用
     peer_evaluations = PeerEvaluation.objects.filter(lesson_session__classroom=classroom)
     # テンプレート側で複雑なクエリ呼び出しを避けるため、各 student に class_point を付与
     student_class_points = StudentClassPoints.objects.filter(classroom=classroom, student__in=students)
@@ -264,6 +275,8 @@ def class_detail_view(request, class_id):
         'sessions': sessions,  # 授業回数表示用
         'peer_evaluations': peer_evaluations,
         'recent_lessons': lessons,
+        'show_all': show_all,
+        'total_sessions': all_sessions.count(),
     }
     return render(request, 'school_management/class_detail.html', context)
 
