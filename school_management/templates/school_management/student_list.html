@@ -60,6 +60,14 @@
                                                class="btn btn-outline-warning btn-sm">
                                                 <i class="fas fa-edit me-1"></i>編集
                                             </a>
+                                            <form method="post" style="display: inline;" onsubmit="return confirm('{{ student.full_name }}さんを削除してもよろしいですか？この操作は取り消せません。');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete_student">
+                                                <input type="hidden" name="student_number" value="{{ student.student_number }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    <i class="fas fa-trash me-1"></i>削除
+                                                </button>
+                                            </form>
                                         </div>
                                         {% else %}
                                         <span class="text-muted">学籍番号未設定</span>
